@@ -9,6 +9,9 @@ import sys
 
 ORDER = ["baseline", "process-sandbox", "rootless-container", "firecracker"]
 SYM = {"as-expected": "ok", "UNEXPECTED": "!!", "info": "· "}
+# Who each boundary is for; see "Why" in the README.
+USE_CASE = {"baseline": "reference only", "process-sandbox": "developer",
+            "rootless-container": "automation", "firecracker": "hosted service"}
 
 
 def latest_per_backend(results_dir):
@@ -46,6 +49,7 @@ def cost_rows(runs, backends):
         return cur
 
     metrics = [
+        ("use case",            lambda b: USE_CASE.get(b, "—")),
         ("total time (ms)",     lambda b: g(b, "timing_ms", "total")),
         ("  prepare (ms)",      lambda b: g(b, "timing_ms", "prepare")),
         ("  run (ms)",          lambda b: g(b, "timing_ms", "run")),
