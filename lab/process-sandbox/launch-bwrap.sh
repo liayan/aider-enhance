@@ -15,9 +15,12 @@ source "$RUN_DIR/hostside/ports.env"
 
 # --- fail-closed preconditions ---------------------------------------------
 require command -v bwrap >/dev/null
-# unprivileged userns must actually work (not just exist)
-bwrap --unshare-user --uid 0 -- true 2>/dev/null || \
-  die "unprivileged user namespaces unavailable; refuse to run unsandboxed"
+# user namespaces must actually work (not just exist). Bind a real binary so the
+# check tests namespaces, not PATH.
+bwrap --unshare-user --unshare-pid --ro-bind /usr /usr \
+      $( [ -d /lib64 ] && echo --ro-bind /lib64 /lib64 ) \
+      --ro-bind /lib /lib --ro-bind /bin /bin -- /bin/true 2>/dev/null || \
+  die "user namespaces unavailable; refuse to run unsandboxed"
 
 # Landlock detection (informational; policy is enforced by landlock_guard.py)
 LL_ABI="$(python3 "$HERE/landlock_guard.py" --abi 2>/dev/null || echo 0)"
@@ -76,6 +79,9 @@ bwrap \
   --setenv DEMO_RUN_ENV /input/run.env \
   --setenv RUN_MODE "$RUN_MODE" \
   --setenv DEMO_MODEL "${DEMO_MODEL:-openai/gpt-4o-mini}" \
+  --setenv LIMIT_MEM "${LIMIT_MEM}" \
+  --setenv LIMIT_PIDS "${LIMIT_PIDS}" \
+  --setenv LIMIT_CPU_SEC "${RUN_TIMEOUT_SEC}" \
   --proc /proc \
   --dev /dev \
   --tmpfs /tmp \
@@ -84,7 +90,7 @@ bwrap \
   --ro-bind /bin /bin \
   --ro-bind /lib /lib \
   $( [ -d /lib64 ] && echo --ro-bind /lib64 /lib64 ) \
-  --ro-bind /etc/ssl /etc/ssl \
+  --ro-bind /etc /etc \
   --ro-bind "$REPO_ROOT/lab" /lab \
   --ro-bind "$RUN_DIR/input" /input \
   --bind "$RUN_DIR/work" /work \

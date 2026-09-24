@@ -62,6 +62,15 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 self.end_headers()
                 self.wfile.write(data)
                 logline(event="response", status=resp.status, bytes_out=len(data))
+                # Account tokens so footprint.py can total the agent's real cost.
+                try:
+                    usage = json.loads(data).get("usage", {})
+                    if usage:
+                        logline(event="usage",
+                                prompt_tokens=usage.get("prompt_tokens", 0),
+                                completion_tokens=usage.get("completion_tokens", 0))
+                except Exception:
+                    pass
         except Exception as e:
             logline(event="error", error=str(e))
             self.send_error(502, "gateway upstream error")

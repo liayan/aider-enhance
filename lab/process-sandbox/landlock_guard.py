@@ -107,6 +107,37 @@ def enforce():
     sys.stderr.write(f"[landlock] enforced (ABI {a})\n")
 
 
+def apply_rlimits():
+    """Enforce a resource budget with setrlimit, so the process sandbox has real
+    memory/PID/CPU caps comparable to the container's cgroup limits. Values come
+    from the environment (set by the launcher from versions.env)."""
+    import resource as R
+
+    def parse_bytes(s):
+        s = s.strip().upper()
+        mult = {"K": 1024, "M": 1024**2, "G": 1024**3}
+        return int(float(s[:-1]) * mult[s[-1]]) if s and s[-1] in mult else int(s)
+
+    applied = []
+    mem = os.environ.get("LIMIT_MEM")
+    if mem:
+        b = parse_bytes(mem)
+        R.setrlimit(R.RLIMIT_AS, (b, b))
+        R.setrlimit(R.RLIMIT_DATA, (b, b))
+        applied.append(f"AS={mem}")
+    pids = os.environ.get("LIMIT_PIDS")
+    if pids:
+        R.setrlimit(R.RLIMIT_NPROC, (int(pids), int(pids)))
+        applied.append(f"NPROC={pids}")
+    cpu = os.environ.get("LIMIT_CPU_SEC")
+    if cpu:
+        R.setrlimit(R.RLIMIT_CPU, (int(cpu), int(cpu)))
+        applied.append(f"CPU={cpu}s")
+    R.setrlimit(R.RLIMIT_CORE, (0, 0))  # no core dumps
+    if applied:
+        sys.stderr.write("[rlimit] enforced " + ", ".join(applied) + "\n")
+
+
 def main():
     args = sys.argv[1:]
     if args and args[0] == "--abi":
@@ -116,6 +147,7 @@ def main():
         rest = args[1:]
         if rest and rest[0] == "--":
             rest = rest[1:]
+        apply_rlimits()
         enforce()
         if not rest:
             sys.exit("[landlock] nothing to exec")
