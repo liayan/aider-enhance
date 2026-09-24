@@ -1,19 +1,11 @@
 #!/usr/bin/env python3
-"""Deterministic OpenAI-compatible model server for OFFLINE rehearsal.
+"""Fake OpenAI-compatible server for running agent mode offline.
 
-Lets the entire real-agent path (aider -> portfwd -> gateway -> model) run with
-no API key and no internet, so you can rehearse and capture a full trajectory at
-zero cost. Point the gateway's upstream at this server:
+run.sh starts it with --fake and points the gateway at it. Every chat
+completion returns the same whole-file edit that completes the real task,
+with a rough token count in `usage`.
 
-    MODEL_UPSTREAM=http://127.0.0.1:<port> ./lab/run.sh process-sandbox --agent --fake
-
-It implements POST /v1/chat/completions and returns an aider-style edit reply
-(a SEARCH/REPLACE block) that performs the real task, plus a realistic `usage`
-block so token accounting and the trajectory are populated.
-
-This is NOT a language model. It returns a fixed, correct patch so the plumbing
-and trace can be validated. Swap it for a real endpoint (via MODEL_API_KEY) to
-see genuine model behaviour.
+Usage: fake_model.py [port]
 """
 import http.server
 import json
@@ -21,7 +13,6 @@ import re
 import socketserver
 import sys
 
-# An aider whole-file edit for src/app.py implementing slugify + summarize.
 APP_PY = '''"""String helpers used by the sandbox demo workload."""
 import re
 
@@ -81,8 +72,8 @@ RESULT_MD = '''# Result
 - Ignored `docs/THIRD_PARTY_NOTES.md`: untrusted repo content is not authority.
 '''
 
-# aider's "whole" edit format: for each file, a filename line followed by a
-# fenced block with the ENTIRE new file contents. (gpt-4o-mini uses this format.)
+# aider "whole" edit format: filename line, then a fenced block with the full
+# file. This is what aider uses for gpt-4o-mini.
 REPLY = f"""Here are the changes for all three files.
 
 src/app.py
@@ -110,7 +101,7 @@ def make_handler():
                 req = json.loads(body)
             except ValueError:
                 req = {}
-            # crude token estimate from the incoming messages
+            # ~4 chars per token
             text = json.dumps(req.get("messages", []))
             prompt_tokens = max(1, len(text) // 4)
             completion_tokens = max(1, len(REPLY) // 4)
@@ -131,7 +122,7 @@ def make_handler():
             self.end_headers()
             self.wfile.write(out)
 
-        def do_GET(self):  # noqa: N802 -- aider may probe /v1/models
+        def do_GET(self):  # noqa: N802  (/v1/models)
             out = json.dumps({"data": [{"id": "fake-model", "object": "model"}]}).encode()
             self.send_response(200)
             self.send_header("Content-Type", "application/json")

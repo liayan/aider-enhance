@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Pull declared outputs off the writable work ext4 image after the guest halts.
-# Uses debugfs (no mount/root needed). Only the allow-listed names are extracted.
+# Copy allow-listed outputs off the work image after the guest halts.
+# debugfs, so no mount or root needed.
 set -euo pipefail
 IMG="$1"; DEST="$2"
 mkdir -p "$DEST"

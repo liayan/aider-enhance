@@ -1,14 +1,9 @@
 #!/usr/bin/env python3
-"""Assemble the full agent trajectory for a run into trajectory.json.
+"""Write collected/trajectory.json for an agent-mode run.
 
-Sources (agent mode only):
-  - hostside/gateway-trace.jsonl : per-turn request messages, completion, usage
-  - collected/.aider.chat.history.md : aider's record of edits applied + commands
-  - collected/acceptance.log + .acceptance_rc : did the real task actually pass
-  - collected/probes.json : what the agent/probes could reach under the boundary
-
-Produces a compact, presentable trajectory: an ordered list of turns with token
-cost and the assistant's action, plus a summary (turns, tokens, task graded).
+Inputs: gateway-trace.jsonl (per-turn messages and usage), aider's chat
+history (edited files), acceptance.log/.acceptance_rc, and probes.json.
+Output: per-turn tokens and message previews plus a summary.
 
 Usage: trajectory.py <run_dir>
 """
@@ -37,14 +32,12 @@ def summarize_message(content):
 
 
 def edits_from_chat_history(path):
-    """Best-effort: count files aider said it edited + shell commands it ran."""
+    """Files aider reports editing and commands it ran."""
     edits, commands = [], []
     if not os.path.exists(path):
         return edits, commands
     text = open(path, encoding="utf-8", errors="replace").read()
-    # aider marks applied edits like "Applied edit to src/app.py"
     edits = sorted(set(re.findall(r"Applied edit to (\S+)", text)))
-    # and logs run commands after a "> " or "Running " prefix (version-dependent)
     commands = re.findall(r"^Running (.+)$", text, re.MULTILINE)
     return edits, commands
 
@@ -54,7 +47,6 @@ def main(run_dir):
     meta_path = os.path.join(collected, "metadata.json")
     meta = json.load(open(meta_path)) if os.path.exists(meta_path) else {}
     if meta.get("run_mode") != "agent":
-        # nothing to assemble for emulate/baseline runs
         return 0
 
     trace = read_jsonl(os.path.join(run_dir, "hostside", "gateway-trace.jsonl"))

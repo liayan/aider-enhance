@@ -1,8 +1,6 @@
 #!/bin/sh
-# PID 1 inside the Firecracker guest. Minimal: mount essentials, mount the block
-# devices carrying the workload and lab code, run the same inside.sh, then power
-# off. Outputs are written back onto the writable /work block device, which the
-# host extracts after shutdown.
+# PID 1 in the guest. Mount the work and input drives, run inside.sh, power
+# off. Outputs stay on the work drive for the host to extract.
 set -u
 export PATH=/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin
 
@@ -12,7 +10,7 @@ mount -t devtmpfs dev /dev 2>/dev/null
 mount -t tmpfs tmp /tmp 2>/dev/null
 mkdir -p /tmp/home
 
-# Block devices: vda=rootfs(ro), vdb=work(rw), vdc=input(ro, holds /input + /lab)
+# vda rootfs (ro), vdb work (rw), vdc input + lab (ro)
 mkdir -p /work /mnt/input
 mount -o rw  /dev/vdb /work      2>/dev/null || echo "guest: work mount failed"
 mount -o ro  /dev/vdc /mnt/input 2>/dev/null || echo "guest: input mount failed"
@@ -29,5 +27,4 @@ echo "guest: starting inside.sh"
 echo "guest: inside.sh rc=$? (outputs on /work)"
 
 sync
-# Clean power-off so the host loop returns.
 poweroff -f 2>/dev/null || { echo o > /proc/sysrq-trigger; }

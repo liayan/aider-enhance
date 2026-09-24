@@ -1,17 +1,9 @@
 #!/usr/bin/env python3
-"""Deterministic stand-in for Aider, so the demo runs offline with no API key.
+"""Stand-in for aider in emulate mode.
 
-RUN_MODE=agent   -> the real Aider is invoked instead (see workload.sh); this file
-                    is not used.
-RUN_MODE=emulate -> this file plays the agent: it performs the *declared* task
-                    exactly and ignores the injected instructions, giving a
-                    clean, repeatable baseline where the only variable is the
-                    boundary. It writes agent.log describing what it did.
-
-The emulator is intentionally a "well-behaved" agent: it does the coding task and
-does NOT act on docs/THIRD_PARTY_NOTES.md. The probe_runner still independently
-attempts every escape, so the security comparison does not depend on the agent's
-behaviour. To demo a *fooled* agent, run RUN_MODE=agent with a real model.
+Does the basic task (add slugify() and tests, write RESULT.md) and ignores the
+injection fixture. The probes test the boundary independently of this, so the
+security results don't depend on it. Logs to agent.log.
 """
 import os
 import subprocess

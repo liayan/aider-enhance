@@ -1,18 +1,17 @@
 #!/usr/bin/env bash
-# In-boundary entrypoint. Runs identically in bwrap, the container, and the guest.
-# It expects, inside the boundary:
-#   /work    read-write workspace (the copied repo)
-#   /input   read-only: task.txt (+ task-agent.txt in agent mode), run.env
-#   /lab     read-only: this repo's lab/ (for common/*.py)
+# Entrypoint inside the boundary; the same script for every backend.
+# Expects:
+#   /work    rw workspace
+#   /input   ro task.txt, task-agent.txt, run.env
+#   /lab     ro lab/ from this repo
 #
-# Two task tiers:
-#   emulate : the deterministic basic unit-test task (agent_emulator.py). Unchanged.
-#   agent   : the REAL coding task, performed by aider talking to the model through
-#             the single audited network path (portfwd -> mounted gateway socket).
+# emulate: agent_emulator.py does the basic task.
+# agent:   aider does the real task, talking to the model through portfwd.py
+#          and the mounted gateway socket.
 set -uo pipefail
 
 WORK="${DEMO_WORK:-/work}"
-LAB="${DEMO_LAB:-/lab}"          # /lab inside a sandbox; repo lab/ on the host baseline
+LAB="${DEMO_LAB:-/lab}"          # baseline sets this to the repo's lab/
 export DEMO_WORK="$WORK"
 export DEMO_RUN_ENV="${DEMO_RUN_ENV:-/input/run.env}"
 RUN_MODE="${RUN_MODE:-emulate}"
@@ -20,9 +19,8 @@ cd "$WORK"
 
 echo "[inside] backend=${DEMO_BACKEND:-?} mode=$RUN_MODE uid=$(id -u) work=$WORK"
 
-# ---- agent phase -----------------------------------------------------------
 if [ "$RUN_MODE" = "agent" ]; then
-  # Bring up the single egress path: 127.0.0.1:$GATEWAY_PORT -> /run/model.sock
+  # 127.0.0.1:$GATEWAY_PORT -> /run/model.sock
   GATEWAY_PORT="${GATEWAY_PORT:-8080}"
   if [ -S /run/model.sock ]; then
     python3 "$LAB/common/portfwd.py" "$GATEWAY_PORT" /run/model.sock &
@@ -33,15 +31,13 @@ if [ "$RUN_MODE" = "agent" ]; then
   fi
 
   export OPENAI_API_BASE="http://127.0.0.1:${GATEWAY_PORT}/v1"
-  export OPENAI_API_KEY="sandbox-dummy"   # real key lives on the host gateway only
+  export OPENAI_API_KEY="sandbox-dummy"   # gateway adds the real key
   export AIDER_LLM_HISTORY_FILE="$WORK/.aider.llm.history"
   export AIDER_CHAT_HISTORY_FILE="$WORK/.aider.chat.history.md"
 
   echo "[inside] running real aider on the coding task"
-  # INSTRUCTIONS.md and docs/ (the untrusted injection fixture) are added as
-  # read-only context so prompt-injection is genuinely exercised against a model.
-  # --no-stream: one non-streamed response per turn -> clean per-turn trace.
-  # --no-check-update / --no-show-release-notes: no incidental network at startup.
+  # The injection fixture goes in as read-only context so the model sees it.
+  # --no-stream gives one response per turn, which keeps the trace simple.
   aider --yes --no-git --no-stream --no-check-update --no-show-release-notes \
         --model "${DEMO_MODEL:-openai/gpt-4o-mini}" \
         --message-file /input/task-agent.txt \
@@ -55,9 +51,8 @@ else
   python3 "$LAB/common/agent_emulator.py"
 fi
 
-# ---- acceptance grading (real task, agent mode only) -----------------------
-# The acceptance tests grade the REAL coding task. They must not run against the
-# emulate tier (basic unit-test task), which never implements summarize().
+# Acceptance tests for the real task. Emulate mode never adds summarize(), so
+# skip them there.
 if [ "$RUN_MODE" = "agent" ] && [ -d /input/acceptance ]; then
   cp -r /input/acceptance "$WORK/acceptance"
   echo "[inside] running acceptance tests"
@@ -66,7 +61,6 @@ if [ "$RUN_MODE" = "agent" ] && [ -d /input/acceptance ]; then
   echo "$?" > "$WORK/.acceptance_rc"
 fi
 
-# ---- probe phase -----------------------------------------------------------
 echo "[inside] running probes"
 python3 "$LAB/common/probe_runner.py" "$WORK/probes.json"
 
