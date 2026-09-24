@@ -69,11 +69,44 @@ whole point of running three of them.
 ./lab/compare-results.sh                # matrix + results/comparison.md
 ```
 
-Real-agent mode (optional, needs `aider` + a key on the host):
+### Two task tiers
+
+- **Basic task (emulate, default):** a deterministic script adds `slugify()` +
+  a unit test. No model, no key, fully reproducible. Used to measure the boundary.
+- **Real task (`--agent`):** the model actually performs a coding task
+  (`workload/task-agent.txt`: add `summarize()` across `src/` + tests + RESULT.md)
+  through Aider. Graded by an **acceptance test the runner supplies *after* the
+  agent finishes** (`workload/acceptance/`), so the model can't tailor its output
+  to the checks. Every turn is traced (see below).
 
 ```bash
-export MODEL_API_KEY=sk-...             # stays on the host, injected by the gateway
+# Real model (key stays on the host, injected by the gateway; never enters the sandbox):
+export MODEL_API_KEY=sk-...
 ./lab/run.sh process-sandbox --agent
+
+# Offline rehearsal — full real-agent path with a deterministic local model, no key:
+./lab/run.sh process-sandbox --agent --fake
+```
+
+**How the agent reaches the model.** The sandbox has no network. A host-side
+gateway holds the API key and is exposed to the sandbox only as a bind-mounted
+Unix socket; inside, a tiny forwarder (`portfwd.py`) bridges `127.0.0.1:PORT` →
+that socket. That single, audited path is the only egress — the `network-egress`
+probe still shows `blocked` because every *other* destination is unreachable.
+
+### Full trajectory trace
+
+In agent mode each run writes `collected/trajectory.json`: per-turn prompt/
+completion tokens, a preview of the user and assistant messages, files edited,
+and whether the real task passed acceptance. The raw per-turn bodies (API key
+redacted) are in `collected/gateway-trace.jsonl`, and Aider's own record is in
+`.aider.chat.history.md` / `.aider.llm.history`. Example summary from a `--fake`
+run through the process sandbox:
+
+```
+turns: 1 | tokens: 1975 (1550 prompt + 425 completion)
+files edited: RESULT.md, src/app.py, tests/test_app.py
+real task passed: true
 ```
 
 ### Building the container image
@@ -147,6 +180,9 @@ results/<date>-<backend>-<id>/collected/
 ├── metadata.json   backend, digests, kernel, limits, network mode, run mode
 ├── probes.json     per-probe expected/observed/verdict (+ host evidence)
 ├── footprint.json  timing, peak RSS/procs, boundary disk, host helpers, agent cost
+├── trajectory.json (agent mode) per-turn tokens, messages, edits, task grade
+├── gateway-trace.jsonl (agent mode) raw per-turn bodies, API key redacted
+├── acceptance.log  (agent mode) independent grading of the real task
 ├── agent.log       what the agent did
 ├── stdout.log / stderr.log
 └── RESULT.md       the agent's declared task output

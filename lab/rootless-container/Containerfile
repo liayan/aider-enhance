@@ -6,9 +6,9 @@ FROM ${BASE_IMAGE}
 # Non-root identity baked in; the launcher also enforces --user.
 RUN useradd --uid 1000 --create-home --shell /usr/sbin/nologin agent
 # The lab code is mounted read-only at run time, not copied, so the image stays
-# generic. Only add the agent runtime here.
-# For agent mode, uncomment and pin:
-# RUN pip install --no-cache-dir "aider-chat==0.86.1"
+# generic. For agent mode, install the pinned agent runtime into the image:
+#   (kept commented so emulate-mode builds stay tiny; uncomment for --agent)
+# RUN pip install --no-cache-dir --break-system-packages "aider-chat==0.86.2"
 
 USER 1000:1000
 WORKDIR /work

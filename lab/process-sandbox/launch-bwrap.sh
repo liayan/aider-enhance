@@ -82,6 +82,7 @@ bwrap \
   --setenv LIMIT_MEM "${LIMIT_MEM}" \
   --setenv LIMIT_PIDS "${LIMIT_PIDS}" \
   --setenv LIMIT_CPU_SEC "${RUN_TIMEOUT_SEC}" \
+  --setenv GATEWAY_PORT "${GATEWAY_PORT:-8080}" \
   --proc /proc \
   --dev /dev \
   --tmpfs /tmp \

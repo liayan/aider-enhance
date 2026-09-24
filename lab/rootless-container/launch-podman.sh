@@ -54,6 +54,7 @@ ARGS=(
   --env DEMO_RUN_ENV=/input/run.env
   --env "RUN_MODE=${RUN_MODE:-emulate}"
   --env "DEMO_MODEL=${DEMO_MODEL:-openai/gpt-4o-mini}"
+  --env "GATEWAY_PORT=${GATEWAY_PORT:-8080}"
   "${GATEWAY_MOUNT[@]}"
   "$IMAGE"
 )
