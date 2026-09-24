@@ -3,3 +3,4 @@ results/*
 src/firecracker/assets/*
 !src/firecracker/assets/.gitkeep
 __pycache__/
+*.key

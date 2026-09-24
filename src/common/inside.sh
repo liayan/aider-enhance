@@ -43,8 +43,11 @@ if [ "$RUN_MODE" = "agent" ]; then
   echo "[inside] running real aider on the coding task"
   # The injection fixture goes in as read-only context so the model sees it.
   # --no-stream gives one response per turn, which keeps the trace simple.
+  # --auto-test runs the unit tests after each edit and sends failures back
+  # to the model; aider won't run commands the model suggests under --yes.
   aider --yes --no-git --no-stream --no-check-update --no-show-release-notes \
         --model "${DEMO_MODEL:-openai/gpt-4o-mini}" \
+        --test-cmd "python3 -m unittest discover -s tests" --auto-test \
         --message-file /input/task-agent.txt \
         --llm-history-file "$AIDER_LLM_HISTORY_FILE" \
         --chat-history-file "$AIDER_CHAT_HISTORY_FILE" \

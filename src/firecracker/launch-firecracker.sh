@@ -51,6 +51,11 @@ if [ "$RUN_MODE" = "agent" ]; then
   ln -sfn gateway.sock "${VSOCK_UDS}_${MODEL_VSOCK_PORT}"
 fi
 
+# guest-init is baked into the rootfs; the policy digest below is taken from
+# the repo copy, so refuse a rootfs built from an older one.
+debugfs -R "cat /sbin/guest-init" "$ROOTFS" 2>/dev/null | cmp -s - "$HERE/guest-init.sh" || \
+  die "guest-init in $ROOTFS differs from $HERE/guest-init.sh; rebuild with build-guest.sh"
+
 KERNEL_SHA="sha256:$(sha256sum "$KERNEL" | cut -d' ' -f1)"
 ROOTFS_SHA="sha256:$(sha256sum "$ROOTFS" | cut -d' ' -f1)"
 POLICY_DIGEST="sha256:$(sha256sum "$HERE/launch-firecracker.sh" "$HERE/guest-init.sh" | sha256sum | cut -d' ' -f1)"
