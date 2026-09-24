@@ -50,11 +50,12 @@ make_ext4() { # <img> <size_mb> <srcdir>
   mkfs.ext4 -q -F -d "$src" "$img" || die "mkfs.ext4 -d failed for $src"
 }
 
-STAGE="$(mktemp -d)"
+STAGE="$(mktemp -d)"; chmod 0755 "$STAGE"   # becomes the input drive root
 mkdir -p "$STAGE/work" "$STAGE/input" "$STAGE/src"
 cp -a "$RUN_DIR/work/." "$STAGE/work/"
 cp -a "$RUN_DIR/input/." "$STAGE/input/"
-cp -a "$REPO_ROOT/src/." "$STAGE/src/"
+# assets/ holds the kernel and rootfs; the guest doesn't need them.
+tar -C "$REPO_ROOT/src" --exclude=./firecracker/assets -cf - . | tar -C "$STAGE/src" -xf -
 make_ext4 "$WORK_IMG" 256 "$STAGE/work"
 make_ext4 "$INPUT_IMG" 64 "$STAGE"   # holds /input and /src
 rm -rf "$STAGE"
@@ -78,12 +79,15 @@ EOF
 ok "booting firecracker (vcpus=${FC_VCPUS} mem=${FC_MEM_MIB}MiB net=$NET_MODE)"
 set +e
 timeout "${RUN_TIMEOUT_SEC}" "$FC_BIN" --no-api --config-file "$CFG" \
-  > "$RUN_DIR/collected/stdout.log" 2> "$RUN_DIR/collected/stderr.log"
+  > "$RUN_DIR/collected/console.log" 2> "$RUN_DIR/collected/firecracker.log"
 RC=$?
 set -e
 
-"$HERE/extract-guest-output.sh" "$WORK_IMG" "$RUN_DIR/collected" || \
+# Copy the guest's outputs back into work/, where run.sh's collect step reads
+# them with the same allow-list and size caps as the other backends.
+"$HERE/extract-guest-output.sh" "$WORK_IMG" "$RUN_DIR/work" || \
   warn "could not extract guest outputs"
+[ -f "$RUN_DIR/work/probes.json" ] && cp "$RUN_DIR/work/probes.json" "$RUN_DIR/collected/probes.json"
 
 write_metadata "$RUN_DIR" "firecracker" "$POLICY_DIGEST" \
   "kernel_digest=$KERNEL_SHA" "rootfs_digest=$ROOTFS_SHA" \
