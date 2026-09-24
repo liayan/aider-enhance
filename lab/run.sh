@@ -14,16 +14,28 @@ BACKEND="${1:-}"; shift || true
 [ -n "$BACKEND" ] || die "usage: run.sh <process-sandbox|rootless-container|firecracker|baseline> [--agent]"
 
 export RUN_MODE=emulate
+FAKE=0
 for a in "$@"; do
   case "$a" in
     --agent) RUN_MODE=agent ;;
     --emulate) RUN_MODE=emulate ;;
+    --fake) FAKE=1 ;;                # rehearsal: deterministic offline model
     *) die "unknown option $a" ;;
   esac
 done
+FAKE_PID=""
 if [ "$RUN_MODE" = "agent" ]; then
   command -v aider >/dev/null || die "--agent needs aider installed on the host/image"
-  [ -n "${MODEL_API_KEY:-}" ] || warn "MODEL_API_KEY empty; gateway will fail upstream"
+  if [ "$FAKE" = "1" ]; then
+    FAKE_PORT=$(( (RANDOM % 900) + 8900 ))
+    python3 "$HERE/common/fake_model.py" "$FAKE_PORT" & FAKE_PID=$!
+    export MODEL_UPSTREAM="http://127.0.0.1:$FAKE_PORT"
+    export MODEL_API_KEY="fake-offline"
+    sleep 0.3
+    log "using deterministic fake model at $MODEL_UPSTREAM (no key, no internet)"
+  elif [ -z "${MODEL_API_KEY:-}" ]; then
+    warn "MODEL_API_KEY empty; gateway will fail upstream (use --fake to rehearse)"
+  fi
 fi
 
 RUN_ID="$(new_run_id "$BACKEND")"
@@ -47,6 +59,7 @@ cleanup_all() {
   [ -n "$SINK_PID" ]   && kill "$SINK_PID"   2>/dev/null || true
   [ -n "$MARKER_PID" ] && kill "$MARKER_PID" 2>/dev/null || true
   [ -n "$GW_PID" ]     && kill "$GW_PID"     2>/dev/null || true
+  [ -n "$FAKE_PID" ]   && kill "$FAKE_PID"   2>/dev/null || true
 }
 trap cleanup_all EXIT
 
@@ -61,7 +74,10 @@ MARKER_PID=$!
 if [ "$RUN_MODE" = "agent" ]; then
   export GATEWAY_SOCK="$RUN_DIR/hostside/gateway.sock"
   export GATEWAY_LOG="$RUN_DIR/hostside/gateway.log"
+  export GATEWAY_TRACE="$RUN_DIR/hostside/gateway-trace.jsonl"
   export MODEL_UPSTREAM="${MODEL_UPSTREAM:-https://api.openai.com}"
+  # Port the in-sandbox forwarder listens on (same value passed into the sandbox).
+  export GATEWAY_PORT="${GATEWAY_PORT:-8080}"
   python3 "$HERE/common/model_gateway.py" &
   GW_PID=$!
   sleep 0.3
@@ -89,6 +105,10 @@ RUN_MS=$(( $(now_ms) - T_RUN0 ))
 # Preserve the footprint sample before hostside/ is wiped at teardown.
 [ -f "$RUN_DIR/hostside/footprint-sample.json" ] && \
   cp "$RUN_DIR/hostside/footprint-sample.json" "$RUN_DIR/collected/footprint-sample.json"
+# Preserve the (redacted) gateway trajectory + gateway log before teardown wipes them.
+for f in gateway-trace.jsonl gateway.log; do
+  [ -f "$RUN_DIR/hostside/$f" ] && cp "$RUN_DIR/hostside/$f" "$RUN_DIR/collected/$f"
+done
 
 # --- collect declared outputs, safely --------------------------------------
 python3 "$HERE/common/collect.py" "$RUN_DIR/work" "$RUN_DIR/collected" || true
@@ -109,6 +129,9 @@ RUN_MS=$RUN_MS
 TEARDOWN_MS=0
 EOF
 python3 "$HERE/common/footprint.py" "$RUN_DIR" || true
+
+# --- assemble the full agent trajectory (agent mode only) -------------------
+python3 "$HERE/common/trajectory.py" "$RUN_DIR" || true
 
 # --- finalize result dir ----------------------------------------------------
 FINAL="$RESULTS_DIR/$RUN_ID"

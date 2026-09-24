@@ -20,8 +20,13 @@ ALLOW = {
     "RESULT.md": 256 * 1024,
     "probes.json": 4 * 1024 * 1024,
     "agent.log": 8 * 1024 * 1024,
+    "acceptance.log": 2 * 1024 * 1024,
+    ".acceptance_rc": 16,
     "stdout.log": 8 * 1024 * 1024,
     "stderr.log": 8 * 1024 * 1024,
+    # real-agent trajectory artifacts
+    ".aider.chat.history.md": 8 * 1024 * 1024,
+    ".aider.llm.history": 16 * 1024 * 1024,
 }
 
 
