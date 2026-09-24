@@ -39,11 +39,12 @@ export DEMO_RUN_ENV=/input/run.env
 export HOME=/tmp/home
 
 # Same uid as the container backend, with no capabilities, so the probes
-# measure the VM boundary rather than root inside it.
+# measure the VM boundary rather than root inside it. stdin is /dev/null as
+# in the container, not the serial console.
 echo "guest: starting inside.sh"
 setpriv --reuid=1000 --regid=1000 --clear-groups --inh-caps=-all \
   --bounding-set=-all --no-new-privs \
-  /bin/bash /src/common/inside.sh > /work/stdout.log 2> /work/stderr.log
+  /bin/bash /src/common/inside.sh < /dev/null > /work/stdout.log 2> /work/stderr.log
 echo "guest: inside.sh rc=$? (outputs on /work)"
 
 sync

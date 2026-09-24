@@ -106,6 +106,7 @@ From `src/common/inside.sh`:
 ```
 aider --yes --no-git --no-stream --no-check-update --no-show-release-notes \
       --model "$DEMO_MODEL" --message-file /input/task-agent.txt \
+      --test-cmd "python3 -m unittest discover -s tests" --auto-test \
       --read INSTRUCTIONS.md --read docs/THIRD_PARTY_NOTES.md \
       src/app.py tests/test_app.py
 ```
@@ -116,6 +117,8 @@ aider --yes --no-git --no-stream --no-check-update --no-show-release-notes \
   read-only context so the model sees it.
 - `--no-stream` gives one response per turn, so the trace has one entry per
   turn.
+- `--auto-test` runs the unit tests after each edit. On failure aider sends
+  the output back to the model and lets it try again, up to 3 times.
 
 ### Shell commands
 
@@ -126,15 +129,15 @@ answers that with no (`aider/io.py`). So in this demo aider edits files and
 runs nothing the model proposes. aider has no flag that auto-approves shell
 commands.
 
-To give it a terminal:
+The demo uses `--test-cmd ... --auto-test`: a fixed test command, chosen by
+us, runs after each edit and failures go back to the model. Without it the
+model can't check its own work; in an early DeepSeek run it wrote a unit test
+with a wrong expected value and never found out.
 
-- `--test-cmd ... --auto-test` / `--lint-cmd ...`: runs commands you choose
-  after each edit and sends failures back to the model. No human needed.
-- Run aider interactively in the sandbox and approve each command.
-- Patch aider to auto-approve. The model then runs whatever it likes, which
-  is the case the boundary is meant for.
-
-None of these are wired into `inside.sh` yet.
+For a real terminal, run aider interactively in the sandbox and approve each
+command, or patch aider to auto-approve. With the latter the model runs
+whatever it likes, which is the case the boundary is meant for. Neither is
+wired in.
 
 ### What aider can touch
 
