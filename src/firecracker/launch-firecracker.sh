@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Firecracker microVM with its own guest kernel. Workspace, inputs and src/ go
 # in as ext4 drives; guest-init runs inside.sh and the outputs are read back
-# off the work image. Agent mode has no model path here yet (nothing forwards
-# the vsock socket).
+# off the work image. In agent mode the guest reaches the model gateway over
+# vsock.
 #
 # Missing KVM, binary, kernel or rootfs is recorded as not-executed.
 set -euo pipefail
@@ -15,7 +15,12 @@ source "$RUN_DIR/expected.env"
 source "$RUN_DIR/hostside/ports.env"
 
 KERNEL="${FC_KERNEL:-$HERE/assets/vmlinux}"
-ROOTFS="${FC_ROOTFS:-$HERE/assets/rootfs.ext4}"
+# Agent mode needs aider in the guest, which the default rootfs doesn't have.
+if [ "${RUN_MODE:-emulate}" = "agent" ]; then
+  ROOTFS="${FC_ROOTFS:-$HERE/assets/rootfs-aider.ext4}"
+else
+  ROOTFS="${FC_ROOTFS:-$HERE/assets/rootfs.ext4}"
+fi
 FC_BIN="${FC_BIN:-firecracker}"
 
 skip() {
@@ -33,6 +38,18 @@ EOF
 command -v "$FC_BIN" >/dev/null || skip "firecracker binary not found"
 [ -f "$KERNEL" ] || skip "kernel image missing ($KERNEL) — run build-guest.sh"
 [ -f "$ROOTFS" ] || skip "rootfs missing ($ROOTFS) — run build-guest.sh"
+
+RUN_MODE="${RUN_MODE:-emulate}"
+# Guest-initiated vsock connections to port P reach the host Unix socket
+# <uds_path>_P, so linking that path to the gateway socket is the whole host
+# side of the model path.
+VSOCK_UDS="$RUN_DIR/hostside/fc-vsock.sock"
+MODEL_VSOCK_PORT=1024
+if [ "$RUN_MODE" = "agent" ]; then
+  debugfs -R "stat /usr/local/bin/aider" "$ROOTFS" 2>/dev/null | grep -q "Type: regular" || \
+    die "rootfs $ROOTFS has no aider; build it with: sudo env WITH_AIDER=1 $HERE/build-guest.sh"
+  ln -sfn gateway.sock "${VSOCK_UDS}_${MODEL_VSOCK_PORT}"
+fi
 
 KERNEL_SHA="sha256:$(sha256sum "$KERNEL" | cut -d' ' -f1)"
 ROOTFS_SHA="sha256:$(sha256sum "$ROOTFS" | cut -d' ' -f1)"
@@ -56,11 +73,21 @@ cp -a "$RUN_DIR/work/." "$STAGE/work/"
 cp -a "$RUN_DIR/input/." "$STAGE/input/"
 # assets/ holds the kernel and rootfs; the guest doesn't need them.
 tar -C "$REPO_ROOT/src" --exclude=./firecracker/assets -cf - . | tar -C "$STAGE/src" -xf -
+# Settings for guest-init; the guest has no other way to get them.
+{
+  echo "RUN_MODE='$RUN_MODE'"
+  if [ "$RUN_MODE" = "agent" ]; then
+    echo "DEMO_MODEL='${DEMO_MODEL}'"
+    echo "GATEWAY_PORT='${GATEWAY_PORT:-8080}'"
+    echo "MODEL_VSOCK='2:$MODEL_VSOCK_PORT'"
+  fi
+} > "$STAGE/guest.env"
+grep -q "'.*'.*'" "$STAGE/guest.env" && die "quote in guest settings"
 make_ext4 "$WORK_IMG" 256 "$STAGE/work"
 make_ext4 "$INPUT_IMG" 64 "$STAGE"   # holds /input and /src
 rm -rf "$STAGE"
 
-NET_MODE=none
+NET_MODE=$([ "$RUN_MODE" = agent ] && echo gateway-vsock || echo none)
 BOOT_ARGS="console=ttyS0 reboot=k panic=1 pci=off init=/sbin/guest-init"
 CFG="$RUN_DIR/hostside/fc-config.json"
 cat > "$CFG" <<EOF
@@ -72,7 +99,7 @@ cat > "$CFG" <<EOF
     { "drive_id": "input",  "path_on_host": "$INPUT_IMG","is_root_device": false, "is_read_only": true }
   ],
   "machine-config": { "vcpu_count": ${FC_VCPUS}, "mem_size_mib": ${FC_MEM_MIB} },
-  "vsock": { "guest_cid": 3, "uds_path": "$RUN_DIR/hostside/fc-vsock.sock" }
+  "vsock": { "guest_cid": 3, "uds_path": "$VSOCK_UDS" }
 }
 EOF
 
@@ -90,9 +117,10 @@ set -e
 [ -f "$RUN_DIR/work/probes.json" ] && cp "$RUN_DIR/work/probes.json" "$RUN_DIR/collected/probes.json"
 
 write_metadata "$RUN_DIR" "firecracker" "$POLICY_DIGEST" \
-  "kernel_digest=$KERNEL_SHA" "rootfs_digest=$ROOTFS_SHA" \
+  "kernel_digest=$KERNEL_SHA" "rootfs_digest=$ROOTFS_SHA" "rootfs=$(basename "$ROOTFS")" \
+  "boundary_disk_bytes=$(( $(stat -c %s "$KERNEL") + $(stat -c %s "$ROOTFS") ))" \
   "vcpus=${FC_VCPUS}" "mem_mib=${FC_MEM_MIB}" "network_mode=$NET_MODE" \
-  "workspace_transfer=ext4-block" "run_mode=${RUN_MODE:-emulate}" "inside_rc=$RC"
+  "workspace_transfer=ext4-block" "run_mode=$RUN_MODE" "inside_rc=$RC"
 
 echo "$RC" > "$RUN_DIR/collected/.inside_rc"
 ok "firecracker run finished (rc=$RC)"

@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""Forward 127.0.0.1:<port> to a Unix socket. Runs inside the sandbox.
+"""Forward 127.0.0.1:<port> to the model gateway. Runs inside the sandbox.
 
-The sandbox has no network; the model gateway is mounted in as a Unix socket.
-Aider needs host:port, so this bridges the two.
+The sandbox has no network. The gateway is either a bind-mounted Unix socket
+(process sandbox, container) or a vsock port on the host (Firecracker). Aider
+needs host:port, so this bridges the two.
 
-Usage: portfwd.py <listen_port> <unix_socket_path>
+Usage: portfwd.py <listen_port> <unix_socket_path | vsock:<cid>:<port>>
 """
 import os
 import socket
@@ -29,10 +30,25 @@ def splice(a, b):
                 pass
 
 
-def handle(client, sock_path):
-    up = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+def connect_upstream(target):
+    if target.startswith("vsock:"):
+        _, cid, port = target.split(":")
+        up = socket.socket(socket.AF_VSOCK, socket.SOCK_STREAM)
+        addr = (int(cid), int(port))
+    else:
+        up = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        addr = target
     try:
-        up.connect(sock_path)
+        up.connect(addr)
+    except OSError:
+        up.close()
+        raise
+    return up
+
+
+def handle(client, sock_path):
+    try:
+        up = connect_upstream(sock_path)
     except OSError as e:
         client.close()
         sys.stderr.write(f"[portfwd] upstream connect failed: {e}\n")

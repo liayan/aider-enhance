@@ -45,7 +45,9 @@ check "guest rootfs" test -f "$HERE/firecracker/assets/rootfs.ext4"
 
 echo
 echo "== agent mode (optional) =="
-check "aider present" command -v aider
+check "aider present (process-sandbox)" command -v aider
+check "image has aider (rootless-container)" bash -c "[ \"\$(podman image inspect ${CONTAINER_IMAGE} --format '{{index .Labels \"demo.with_aider\"}}' 2>/dev/null)\" = 1 ]"
+check "rootfs-aider.ext4 (firecracker)" test -f "$HERE/firecracker/assets/rootfs-aider.ext4"
 [ -n "${MODEL_API_KEY:-}" ] && printf '  %-40s %sset%s\n' "MODEL_API_KEY" "$c_grn" "$c_rst" \
   || printf '  %-40s %sunset (emulate mode still works)%s\n' "MODEL_API_KEY" "$c_yel" "$c_rst"
 

@@ -2,11 +2,15 @@
 # Build the Firecracker rootfs: export a python image with podman, add
 # guest-init, and copy it into an ext4 image. Expects the kernel to already be
 # at assets/vmlinux. Needs root for the loop mount.
+#
+# WITH_AIDER=1 builds the container image with aider and writes it to
+# assets/rootfs-aider.ext4 instead, which --agent runs use.
 set -euo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$HERE/../common/lib.sh"
 ASSETS="$HERE/assets"; mkdir -p "$ASSETS"
-SIZE_MB="${ROOTFS_MB:-800}"
+WITH_AIDER="${WITH_AIDER:-0}"
+SIZE_MB="${ROOTFS_MB:-$([ "$WITH_AIDER" = 1 ] && echo 2048 || echo 800)}"
 
 if [ ! -f "$ASSETS/vmlinux" ]; then
   cat >&2 <<EOF
@@ -20,7 +24,11 @@ EOF
 fi
 
 IMG="${GUEST_IMAGE:-docker.io/library/python:3.12-slim-bookworm}"
-ROOTFS="$ASSETS/rootfs.ext4"
+if [ "$WITH_AIDER" = 1 ]; then
+  IMG="$(podman build -q --build-arg WITH_AIDER=1 \
+    -f "$HERE/../rootless-container/Containerfile" "$REPO_ROOT")"
+fi
+ROOTFS="$ASSETS/$([ "$WITH_AIDER" = 1 ] && echo rootfs-aider.ext4 || echo rootfs.ext4)"
 log "building rootfs from $IMG ($SIZE_MB MB)"
 
 CID="$(podman create "$IMG" /bin/true)"

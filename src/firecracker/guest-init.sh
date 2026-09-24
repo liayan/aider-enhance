@@ -18,6 +18,21 @@ mount -o rw,nosuid,nodev /dev/vdb /work 2>/dev/null || echo "guest: work mount f
 mount -o ro,nosuid,nodev /dev/vdc /mnt/input 2>/dev/null || echo "guest: input mount failed"
 chown -R 1000:1000 /work
 
+# Run mode and, in agent mode, the model settings, written by the launcher.
+[ -f /mnt/input/guest.env ] && . /mnt/input/guest.env
+export RUN_MODE="${RUN_MODE:-emulate}"
+if [ "$RUN_MODE" = "agent" ]; then
+  export DEMO_MODEL GATEWAY_PORT MODEL_VSOCK
+  # portfwd listens on 127.0.0.1. There is no ip(8) in the image, so bring
+  # lo up with SIOCGIFFLAGS/SIOCSIFFLAGS. No other interface exists.
+  python3 -c '
+import fcntl, socket, struct
+s = socket.socket()
+flags = struct.unpack("16sH", fcntl.ioctl(s, 0x8913, struct.pack("16sH", b"lo", 0))[:18])[1]
+fcntl.ioctl(s, 0x8914, struct.pack("16sH", b"lo", flags | 1))
+' || echo "guest: could not bring up lo"
+fi
+
 export DEMO_BACKEND=firecracker
 export DEMO_WORK=/work
 export DEMO_RUN_ENV=/input/run.env
