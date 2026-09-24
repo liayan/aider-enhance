@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Firecracker microVM with its own guest kernel. Workspace, inputs and lab/ go
+# Firecracker microVM with its own guest kernel. Workspace, inputs and src/ go
 # in as ext4 drives; guest-init runs inside.sh and the outputs are read back
 # off the work image. Agent mode has no model path here yet (nothing forwards
 # the vsock socket).
@@ -51,12 +51,12 @@ make_ext4() { # <img> <size_mb> <srcdir>
 }
 
 STAGE="$(mktemp -d)"
-mkdir -p "$STAGE/work" "$STAGE/input" "$STAGE/lab"
+mkdir -p "$STAGE/work" "$STAGE/input" "$STAGE/src"
 cp -a "$RUN_DIR/work/." "$STAGE/work/"
 cp -a "$RUN_DIR/input/." "$STAGE/input/"
-cp -a "$REPO_ROOT/lab/." "$STAGE/lab/"
+cp -a "$REPO_ROOT/src/." "$STAGE/src/"
 make_ext4 "$WORK_IMG" 256 "$STAGE/work"
-make_ext4 "$INPUT_IMG" 64 "$STAGE"   # holds /input and /lab
+make_ext4 "$INPUT_IMG" 64 "$STAGE"   # holds /input and /src
 rm -rf "$STAGE"
 
 NET_MODE=none

@@ -45,7 +45,7 @@ fi
 # Mounts:
 #   /work   rw     workspace copy
 #   /input  ro     task, run.env
-#   /lab    ro     probe and emulator code
+#   /src    ro     probe and emulator code
 #   /tmp    tmpfs
 # /demo (canary, creds) is not mounted, so probes for it should get ENOENT.
 # To show a leak, add --ro-bind "$RUN_DIR/hostside" /demo.
@@ -82,13 +82,13 @@ bwrap \
   --ro-bind /lib /lib \
   $( [ -d /lib64 ] && echo --ro-bind /lib64 /lib64 ) \
   --ro-bind /etc /etc \
-  --ro-bind "$REPO_ROOT/lab" /lab \
+  --ro-bind "$REPO_ROOT/src" /src \
   --ro-bind "$RUN_DIR/input" /input \
   --bind "$RUN_DIR/work" /work \
   "${GATEWAY_ARGS[@]}" \
   --chdir /work \
-  -- python3 /lab/process-sandbox/landlock_guard.py --enforce -- \
-       /bin/bash /lab/common/inside.sh \
+  -- python3 /src/process-sandbox/landlock_guard.py --enforce -- \
+       /bin/bash /src/common/inside.sh \
   > "$RUN_DIR/collected/stdout.log" 2> "$RUN_DIR/collected/stderr.log"
 RC=$?
 set -e

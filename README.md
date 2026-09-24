@@ -15,7 +15,7 @@ There is also a `baseline` backend that runs with no isolation, as a reference.
 The agent (aider), repo, task, probes and resource limits are the same for every
 backend.
 
-`aider/` is a submodule of upstream aider at the version in `lab/versions.env`
+`aider/` is a submodule of upstream aider at the version in `src/versions.env`
 (`git submodule update --init`).
 
 ## Design
@@ -40,12 +40,12 @@ backend.
 ## Usage
 
 ```bash
-./lab/preflight.sh                      # what this host can run
-./lab/run.sh baseline                   # no isolation; disposable host only
-./lab/run.sh process-sandbox
-./lab/run.sh rootless-container         # build the image first, see below
-./lab/run.sh firecracker                # see lab/firecracker/README.md
-./lab/compare-results.sh                # tables + results/comparison.md
+./src/preflight.sh               # what this host can run
+./src/run.sh baseline            # no isolation; disposable host only
+./src/run.sh process-sandbox
+./src/run.sh rootless-container  # build the image first, see below
+./src/run.sh firecracker         # see src/firecracker/README.md
+./src/compare-results.sh         # tables + results/comparison.md
 ```
 
 ### Tasks
@@ -58,10 +58,10 @@ backend.
 
 ```bash
 export MODEL_API_KEY=sk-...
-./lab/run.sh process-sandbox --agent
+./src/run.sh process-sandbox --agent
 
-# offline, using lab/common/fake_model.py instead of a real model
-./lab/run.sh process-sandbox --agent --fake
+# offline, using src/common/fake_model.py instead of a real model
+./src/run.sh process-sandbox --agent --fake
 ```
 
 Inside the sandbox aider talks to `127.0.0.1:$GATEWAY_PORT`, which `portfwd.py`
@@ -88,7 +88,7 @@ real task passed: true
 ### Container image
 
 ```bash
-podman build -t agent-sandbox-demo:1 -f lab/rootless-container/Containerfile .
+podman build -t agent-sandbox-demo:1 -f src/rootless-container/Containerfile .
 ```
 
 Add `--network none` if the build host has no network for build containers.
@@ -97,7 +97,7 @@ Podman ignores the memory and pids limits, so the launcher refuses to run.
 
 ### Firecracker guest
 
-See [lab/firecracker/README.md](lab/firecracker/README.md).
+See [src/firecracker/README.md](src/firecracker/README.md).
 
 ## Probes
 

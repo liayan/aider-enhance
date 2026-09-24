@@ -18,7 +18,7 @@ cp "$RUN_DIR/hostside/fake-creds.ini" /demo/fake-creds.ini 2>/dev/null || true
 
 export DEMO_BACKEND=baseline
 export DEMO_WORK="$RUN_DIR/work"
-export DEMO_LAB="$REPO_ROOT/lab"     # baseline runs on the host; lab/ is here
+export DEMO_SRC="$REPO_ROOT/src"  # runs on the host, not in a sandbox
 export DEMO_RUN_ENV="$RUN_DIR/input/run.env"
 export RUN_MODE="${RUN_MODE:-emulate}"
 sed -i "s#^OUTSIDE_PATH=.*#OUTSIDE_PATH=/demo/outside#" "$RUN_DIR/input/run.env"

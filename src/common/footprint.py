@@ -46,7 +46,7 @@ def boundary_disk_bytes(backend, meta, repo_root):
         except (TypeError, ValueError):
             return 0
     if backend == "firecracker":
-        assets = os.path.join(repo_root, "lab", "firecracker", "assets")
+        assets = os.path.join(repo_root, "src", "firecracker", "assets")
         b = 0
         for name in ("vmlinux", "rootfs.ext4"):
             p = os.path.join(assets, name)

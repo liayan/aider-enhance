@@ -51,7 +51,7 @@ ARGS=(
   --tmpfs /tmp/home:rw,nosuid,nodev,size=64m
   --mount "type=bind,src=$RUN_DIR/work,dst=/work,rw"
   --mount "type=bind,src=$RUN_DIR/input,dst=/input,ro"
-  --mount "type=bind,src=$REPO_ROOT/lab,dst=/lab,ro"
+  --mount "type=bind,src=$REPO_ROOT/src,dst=/src,ro"
   # hostside/ (canary, creds) is not mounted.
   --env DEMO_BACKEND=rootless-container
   --env DEMO_WORK=/work
