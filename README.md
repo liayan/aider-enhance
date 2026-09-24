@@ -18,6 +18,28 @@ backend.
 `aider/` is a submodule of upstream aider at the version in `src/versions.env`
 (`git submodule update --init`).
 
+## Why
+
+A coding agent runs with your permissions. If something in the repo talks it
+into reading `~/.ssh` or posting data somewhere, a well-behaved model won't
+save you; it only has to be fooled once. What protects you is a boundary
+around the agent, outside its control, that refuses to run when it can't
+isolate.
+
+Stronger isn't automatically better. Pick the boundary by who runs the agent
+and on whose code:
+
+| Who runs aider | Boundary | Why |
+|---|---|---|
+| A developer, on their own repo, reviewing each step | process sandbox | Hides home, other repos and the network for almost no cost |
+| Automation: `--yes-always`, CI, bots, benchmarks | rootless container | Nobody reviews commands; adds cgroup limits, no capabilities and a fixed image |
+| A service running agents for other people | microVM | Untrusted code from many users on one host; a kernel exploit would reach all of them |
+
+Firecracker is here because hosted agents are built that way, not because an
+individual developer needs it. Its cost is mostly setup: a rootfs per
+toolchain (842 MB here, 2 GB with aider), a kernel, KVM and root to build
+them. In these runs it didn't start slower than the container.
+
 ## Design
 
 - Security results don't depend on the model. `probe_runner.py` runs a fixed set
