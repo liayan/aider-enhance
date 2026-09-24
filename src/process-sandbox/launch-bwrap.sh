@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Process sandbox: bubblewrap, plus Landlock filesystem rules if the kernel
-# supports them. Shares the host kernel.
+# supports them, in a cgroup for memory, pids and CPU. Shares the host kernel.
 #
 # Called by run.sh after prepare_run. Runs inside.sh under bwrap; run.sh does
 # collection.
@@ -19,6 +19,23 @@ bwrap --unshare-user --unshare-pid --ro-bind /usr /usr \
       $( [ -d /lib64 ] && echo --ro-bind /lib64 /lib64 ) \
       --ro-bind /lib /lib --ro-bind /bin /bin -- /bin/true 2>/dev/null || \
   die "user namespaces unavailable; refuse to run unsandboxed"
+
+# Memory, pids and CPU are limited by a cgroup (a systemd user scope), as for
+# the container. RLIMIT_AS isn't used for memory: it counts reserved address
+# space, and aider reserves more than 1G while using much less. Check that
+# the scope really gets the limits before trusting it.
+require command -v systemd-run >/dev/null
+MEM_BYTES="$(numfmt --from=iec "$LIMIT_MEM")"
+SCOPE=(systemd-run --user --scope --quiet
+       -p "MemoryMax=$LIMIT_MEM" -p MemorySwapMax=0
+       -p "TasksMax=$LIMIT_PIDS" -p "CPUQuota=$(( LIMIT_CPUS * 100 ))%"
+       # Kill only the process that hit the limit, as podman does; the
+       # default stops the whole scope.
+       -p OOMPolicy=continue)
+GOT="$("${SCOPE[@]}" -- sh -c 'd=/sys/fs/cgroup$(cut -d: -f3 /proc/self/cgroup)
+  echo "$(cat $d/memory.max) $(cat $d/memory.swap.max) $(cat $d/pids.max)"' 2>/dev/null || true)"
+[ "$GOT" = "$MEM_BYTES 0 $LIMIT_PIDS" ] || \
+  die "systemd user scope doesn't enforce memory/pids limits (got '${GOT:-nothing}'); refuse to run"
 
 # Landlock is applied by landlock_guard.py; this is only for reporting.
 LL_ABI="$(python3 "$HERE/landlock_guard.py" --abi 2>/dev/null || echo 0)"
@@ -55,7 +72,7 @@ export DEMO_RUN_ENV=/input/run.env
 export RUN_MODE="${RUN_MODE:-emulate}"
 
 set +e
-bwrap \
+"${SCOPE[@]}" -- bwrap \
   --die-with-parent \
   --new-session \
   --unshare-user --unshare-pid --unshare-uts --unshare-ipc --unshare-cgroup \
@@ -69,7 +86,6 @@ bwrap \
   --setenv DEMO_RUN_ENV /input/run.env \
   --setenv RUN_MODE "$RUN_MODE" \
   --setenv DEMO_MODEL "${DEMO_MODEL:-openai/gpt-4o-mini}" \
-  --setenv LIMIT_MEM "${LIMIT_MEM}" \
   --setenv LIMIT_PIDS "${LIMIT_PIDS}" \
   --setenv LIMIT_CPU_SEC "${RUN_TIMEOUT_SEC}" \
   --setenv GATEWAY_PORT "${GATEWAY_PORT:-8080}" \
@@ -98,6 +114,7 @@ set -e
 
 write_metadata "$RUN_DIR" "process-sandbox" "$POLICY_DIGEST" \
   "landlock_active=$LL_ACTIVE" "landlock_abi=$LL_ABI" \
+  "cgroup=systemd-user-scope" "memory_max=$LIMIT_MEM" "pids_max=$LIMIT_PIDS" \
   "network_mode=$([ "${RUN_MODE:-emulate}" = agent ] && echo gateway-socket || echo none)" \
   "run_mode=${RUN_MODE:-emulate}" "inside_rc=$RC"
 

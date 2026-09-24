@@ -35,7 +35,8 @@ has no memory limit. `approved-artifact` still passes.
 ```
 
 All isolation probes are blocked and the task still passes. Point out the
-`[landlock] enforced` and `[rlimit] enforced` lines. Shared kernel, cheapest
+`[landlock] enforced` line and the cgroup limits in `metadata.json`
+(`memory_max`, `pids_max`). Shared kernel, cheapest
 option.
 
 ## 4. Rootless container (90s)

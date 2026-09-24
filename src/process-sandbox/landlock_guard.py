@@ -100,8 +100,9 @@ def enforce():
 
 
 def apply_rlimits():
-    """Set memory/PID/CPU rlimits from LIMIT_* env vars, to match the
-    container's cgroup limits."""
+    """Set rlimits from LIMIT_* env vars. launch-bwrap.sh puts memory in a
+    cgroup instead and doesn't pass LIMIT_MEM; the rest stays as a second
+    layer."""
     import resource as R
 
     def parse_bytes(s):
