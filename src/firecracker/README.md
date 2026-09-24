@@ -29,8 +29,12 @@ the run is recorded as `not-executed` with the reason and exits 0.
 - The workspace, `/input` and `src/` are packed into ext4 images with
   `mkfs.ext4 -d` and attached as drives.
 - `guest-init` runs as PID 1, mounts the drives and runs `src/common/inside.sh`
-  as uid 1000 with no capabilities (`setpriv`), like the container backend.
-  It then reboots the guest, which ends the Firecracker process.
+  as uid 1000 with no capabilities (`setpriv`) and stdin from `/dev/null`,
+  like the container backend. It then reboots the guest, which ends the
+  Firecracker process.
+- `guest-init` is copied into the rootfs at build time. The launcher refuses
+  a rootfs whose copy differs from `guest-init.sh` in the repo, so rebuild
+  both rootfs images after changing it.
 - Outputs are written to the work drive, read back into `work/` with
   `debugfs` after the guest exits, and collected with the same allow-list as
   the other backends. The guest's serial console goes to
