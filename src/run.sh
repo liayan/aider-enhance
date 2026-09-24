@@ -24,7 +24,11 @@ for a in "$@"; do
 done
 FAKE_PID=""
 if [ "$RUN_MODE" = "agent" ]; then
-  command -v aider >/dev/null || die "--agent needs aider installed on the host/image"
+  # The container and VM backends bring their own aider.
+  case "$BACKEND" in
+    process-sandbox|baseline)
+      command -v aider >/dev/null || die "--agent needs aider installed on the host" ;;
+  esac
   if [ "$FAKE" = "1" ]; then
     FAKE_PORT=$(( (RANDOM % 900) + 8900 ))
     python3 "$HERE/common/fake_model.py" "$FAKE_PORT" & FAKE_PID=$!
