@@ -72,6 +72,9 @@ Agent mode has been tested with `process-sandbox` and `rootless-container`
 (`--fake`). For `rootless-container`, build the image with
 `--build-arg WITH_AIDER=1` first. Firecracker has no model path yet.
 
+[agent.md](agent.md) explains where aider runs, what crosses the boundary and
+how to run it.
+
 ### Trajectory
 
 Agent-mode runs write `collected/trajectory.json` with per-turn token counts,
