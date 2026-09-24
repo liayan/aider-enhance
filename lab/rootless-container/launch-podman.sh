@@ -18,6 +18,11 @@ require command -v podman >/dev/null
 ROOTLESS="$(podman info --format '{{.Host.Security.Rootless}}' 2>/dev/null || echo false)"
 [ "$ROOTLESS" = "true" ] || die "podman is not rootless; refuse to run"
 
+# Rootless podman on cgroup v1 drops --memory/--pids-limit/--cpus with only a
+# warning, so the resource budget would silently not apply.
+CGROUPS="$(podman info --format '{{.Host.CgroupsVersion}}' 2>/dev/null || echo unknown)"
+[ "$CGROUPS" = "v2" ] || die "rootless podman needs cgroup v2 to enforce limits (host has $CGROUPS); refuse to run"
+
 IMAGE="${CONTAINER_IMAGE}"
 podman image exists "$IMAGE" || die "image $IMAGE not built; run: podman build -t ${IMAGE#localhost/} -f $HERE/Containerfile $REPO_ROOT"
 IMAGE_DIGEST="$(podman image inspect "$IMAGE" --format '{{.Digest}}' 2>/dev/null || echo unknown)"
@@ -34,6 +39,9 @@ fi
 # --- assemble the argv, then verify it before running -----------------------
 ARGS=(
   run --rm
+  # Map the invoking host user to uid 1000 inside so /work (owned by that
+  # user) is writable; plain --user 1000 lands on an unrelated subuid.
+  --userns=keep-id:uid=1000,gid=1000
   --user 1000:1000
   "${NET[@]}"
   --read-only
@@ -63,8 +71,9 @@ ARGS=(
 verify_no() {
   local bad="$1"
   for a in "${ARGS[@]}"; do
-    [[ "$a" == *"$bad"* ]] && die "refusing: found forbidden option '$bad'"
+    if [[ "$a" == *"$bad"* ]]; then die "refusing: found forbidden option '$bad'"; fi
   done
+  return 0
 }
 verify_no "--privileged"
 verify_no "--network=host"; verify_no "--net=host"
