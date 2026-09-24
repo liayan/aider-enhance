@@ -12,9 +12,9 @@ sandbox.
 
 Everything aider does happens inside: its loop, reading and editing files,
 and any command it runs. The one thing that goes out is its HTTP request to
-the model. That request goes over a Unix socket to a gateway on the host,
-which adds the API key and forwards it. The sandbox has no network and never
-sees the key.
+the model. That request goes over a Unix socket (vsock for Firecracker) to a
+gateway on the host, which adds the API key and forwards it. The sandbox has
+no network and never sees the key.
 
 This is different from agents that run on the host and sandbox each tool
 call separately. There, the agent process itself (with its memory, key and
@@ -23,7 +23,7 @@ file access) isn't contained. Here the whole agent is.
 ## Architecture
 
 ```
-HOST                                         SANDBOX (bwrap / podman)
+HOST                                         SANDBOX (bwrap / podman / microVM)
 ----                                         ------------------------
 run.sh
  |- model_gateway.py  <-- gateway.sock ---+  inside.sh
@@ -74,7 +74,7 @@ called.
 |---|---|
 | `src/run.sh` | Starts the gateway (and the fake model with `--fake`), runs the backend, then collects and evaluates |
 | `src/common/model_gateway.py` | Host side. Listens on `hostside/gateway.sock`, adds `Authorization: Bearer $MODEL_API_KEY`, forwards to `MODEL_UPSTREAM`, writes `gateway.log` and `gateway-trace.jsonl` with auth fields removed |
-| `src/common/portfwd.py` | Inside. Bridges `127.0.0.1:$GATEWAY_PORT` to `/run/model.sock`, since aider needs host:port |
+| `src/common/portfwd.py` | Inside. Bridges `127.0.0.1:$GATEWAY_PORT` to `/run/model.sock`, or to `vsock:2:1024` in the Firecracker guest, since aider needs host:port |
 | `src/common/inside.sh` | Inside. Starts portfwd, runs aider, then the acceptance tests and probes |
 | `src/common/fake_model.py` | Offline OpenAI-compatible server. Always returns the same edit that completes the task |
 | `src/common/trajectory.py` | Builds `trajectory.json` from the gateway trace and aider's history |
@@ -87,11 +87,17 @@ How each backend gets the socket in:
 |---|---|---|
 | `process-sandbox` | `--ro-bind hostside/gateway.sock /run/model.sock` | the host's aider |
 | `rootless-container` | `--mount type=bind,...,dst=/run/model.sock,ro`, `--network none` | the image, built with `WITH_AIDER=1` |
-| `firecracker` | none yet | not in the rootfs |
+| `firecracker` | vsock: guest `vsock:2:1024` -> host `hostside/fc-vsock.sock_1024` -> `gateway.sock` | `rootfs-aider.ext4`, built from the same image with `WITH_AIDER=1` |
 | `baseline` | none (no isolation) | the host's aider |
 
-A microVM can't share a Unix socket with the host. Firecracker needs a vsock
-forwarder on both ends, plus aider in the rootfs, and neither exists yet.
+A microVM can't share a Unix socket with the host, so Firecracker uses
+vsock. When the guest connects to host CID 2, port P, Firecracker connects to
+the Unix socket `<uds_path>_P` on the host. The launcher makes
+`fc-vsock.sock_1024` a symlink to `gateway.sock`, so no host-side forwarder
+is needed, and no other port has a socket behind it. In the guest,
+`portfwd.py` listens on `127.0.0.1:8080` and connects out over vsock, and
+`guest-init` brings up loopback for it. Run mode and model settings reach the
+guest in `guest.env` on the input drive.
 
 ### How aider is invoked
 
@@ -149,6 +155,9 @@ Offline, with the fake model (no key, no internet):
 podman build --build-arg WITH_AIDER=1 -t agent-sandbox-demo:1 \
   -f src/rootless-container/Containerfile .
 ./src/run.sh rootless-container --agent --fake
+
+sudo env WITH_AIDER=1 src/firecracker/build-guest.sh   # rootfs-aider.ext4
+./src/run.sh firecracker --agent --fake
 ```
 
 With a real model:
@@ -181,7 +190,7 @@ In `results/<run>/collected/`:
 Things to check after a run:
 
 - `gateway.log` has the model calls, and `metadata.json` shows
-  `network_mode=gateway-socket`.
+  `network_mode=gateway-socket` (`gateway-vsock` for Firecracker).
 - The key doesn't appear anywhere in `collected/`.
 - `prompt-injection-marker` shows whether the model followed the injection;
   `network-egress` and `outside-workspace-write` show whether it could have

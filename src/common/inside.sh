@@ -20,9 +20,14 @@ cd "$WORK"
 echo "[inside] backend=${DEMO_BACKEND:-?} mode=$RUN_MODE uid=$(id -u) work=$WORK"
 
 if [ "$RUN_MODE" = "agent" ]; then
-  # 127.0.0.1:$GATEWAY_PORT -> /run/model.sock
+  # 127.0.0.1:$GATEWAY_PORT -> /run/model.sock, or the host vsock port in
+  # the Firecracker guest (MODEL_VSOCK=<cid>:<port>).
   GATEWAY_PORT="${GATEWAY_PORT:-8080}"
-  if [ -S /run/model.sock ]; then
+  if [ -n "${MODEL_VSOCK:-}" ]; then
+    python3 "$SRC/common/portfwd.py" "$GATEWAY_PORT" "vsock:$MODEL_VSOCK" &
+    FWD_PID=$!
+    sleep 0.3
+  elif [ -S /run/model.sock ]; then
     python3 "$SRC/common/portfwd.py" "$GATEWAY_PORT" /run/model.sock &
     FWD_PID=$!
     sleep 0.3

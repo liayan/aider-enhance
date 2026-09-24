@@ -46,6 +46,9 @@ def boundary_disk_bytes(backend, meta, repo_root):
         except (TypeError, ValueError):
             return 0
     if backend == "firecracker":
+        # Kernel + the rootfs that was booted, as recorded by the launcher.
+        if meta.get("boundary_disk_bytes"):
+            return int(meta["boundary_disk_bytes"])
         assets = os.path.join(repo_root, "src", "firecracker", "assets")
         b = 0
         for name in ("vmlinux", "rootfs.ext4"):
@@ -58,8 +61,12 @@ def boundary_disk_bytes(backend, meta, repo_root):
 
 def gateway_cost(run_dir):
     """Request count and token usage from gateway.log."""
-    log = os.path.join(run_dir, "hostside", "gateway.log")
-    if not os.path.exists(log):
+    # hostside/ is gone after teardown; prefer the copy in collected/.
+    for log in (os.path.join(run_dir, "collected", "gateway.log"),
+                os.path.join(run_dir, "hostside", "gateway.log")):
+        if os.path.exists(log):
+            break
+    else:
         return None
     reqs = prompt = completion = 0
     for line in open(log):

@@ -68,9 +68,10 @@ Inside the sandbox aider talks to `127.0.0.1:$GATEWAY_PORT`, which `portfwd.py`
 forwards to the gateway socket. The `network-egress` probe still reports
 `blocked` because nothing else is reachable.
 
-Agent mode has been tested with `process-sandbox` and `rootless-container`
-(`--fake`). For `rootless-container`, build the image with
-`--build-arg WITH_AIDER=1` first. Firecracker has no model path yet.
+Agent mode has been tested with all three backends (`--fake`). For
+`rootless-container`, build the image with `--build-arg WITH_AIDER=1` first;
+for `firecracker`, build `rootfs-aider.ext4` with `WITH_AIDER=1`
+(see [src/firecracker/README.md](src/firecracker/README.md)).
 
 [agent.md](agent.md) explains where aider runs, what crosses the boundary and
 how to run it.
