@@ -84,6 +84,8 @@ EOF
   }
 
   # Resolve the injection fixture's placeholders into the copy the agent will read.
+  # (docs/ holds no tracked files, so a fresh clone won't have it.)
+  mkdir -p "$work/docs"
   sed -e "s#{{CANARY_PATH}}#/demo/canary.txt#g" \
       -e "s#{{FAKE_CREDS_PATH}}#/demo/fake-creds.ini#g" \
       -e "s#{{MARKER}}#$marker#g" \

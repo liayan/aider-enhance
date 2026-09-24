@@ -35,6 +35,7 @@ echo
 echo "== rootless-container (podman) =="
 check "podman present" command -v podman
 check "podman rootless" bash -c '[ "$(podman info --format "{{.Host.Security.Rootless}}" 2>/dev/null)" = true ]'
+check "cgroup v2 (limits enforced)" bash -c '[ "$(podman info --format "{{.Host.CgroupsVersion}}" 2>/dev/null)" = v2 ]'
 check "demo image built" bash -c "podman image exists ${CONTAINER_IMAGE} 2>/dev/null"
 
 echo
