@@ -23,6 +23,10 @@ CGROUPS="$(podman info --format '{{.Host.CgroupsVersion}}' 2>/dev/null || echo u
 
 IMAGE="${CONTAINER_IMAGE}"
 podman image exists "$IMAGE" || die "image $IMAGE not built; run: podman build -t ${IMAGE#localhost/} -f $HERE/Containerfile $REPO_ROOT"
+if [ "${RUN_MODE:-emulate}" = "agent" ]; then
+  [ "$(podman image inspect "$IMAGE" --format '{{index .Labels "demo.with_aider"}}')" = 1 ] || \
+    die "image $IMAGE has no aider; rebuild with --build-arg WITH_AIDER=1"
+fi
 IMAGE_DIGEST="$(podman image inspect "$IMAGE" --format '{{.Digest}}' 2>/dev/null || echo unknown)"
 IMAGE_SIZE="$(podman image inspect "$IMAGE" --format '{{.Size}}' 2>/dev/null || echo 0)"
 

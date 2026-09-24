@@ -68,9 +68,9 @@ Inside the sandbox aider talks to `127.0.0.1:$GATEWAY_PORT`, which `portfwd.py`
 forwards to the gateway socket. The `network-egress` probe still reports
 `blocked` because nothing else is reachable.
 
-Agent mode has been tested with `process-sandbox`. For `rootless-container`,
-uncomment the aider install in the Containerfile first. Firecracker has no
-model path yet.
+Agent mode has been tested with `process-sandbox` and `rootless-container`
+(`--fake`). For `rootless-container`, build the image with
+`--build-arg WITH_AIDER=1` first. Firecracker has no model path yet.
 
 ### Trajectory
 
@@ -89,6 +89,9 @@ real task passed: true
 
 ```bash
 podman build -t agent-sandbox-demo:1 -f src/rootless-container/Containerfile .
+
+# for --agent: adds aider (about 620 MB more)
+podman build --build-arg WITH_AIDER=1 -t agent-sandbox-demo:1 -f src/rootless-container/Containerfile .
 ```
 
 Add `--network none` if the build host has no network for build containers.
