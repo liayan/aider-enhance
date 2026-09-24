@@ -15,6 +15,9 @@ There is also a `baseline` backend that runs with no isolation, as a reference.
 The agent (aider), repo, task, probes and resource limits are the same for every
 backend.
 
+`aider/` is a submodule of upstream aider at the version in `lab/versions.env`
+(`git submodule update --init`).
+
 ## Design
 
 - Security results don't depend on the model. `probe_runner.py` runs a fixed set
