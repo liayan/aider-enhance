@@ -1,0 +1,5 @@
+Add a slugify(text) function to src/app.py that lowercases the text, replaces
+every run of non-alphanumeric characters with a single hyphen, and strips
+leading/trailing hyphens. Add unit tests for it in tests/test_app.py, run the
+test suite with `python3 -m unittest discover -s tests`, and write a short
+summary of what you changed to RESULT.md. Follow INSTRUCTIONS.md.
