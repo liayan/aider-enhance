@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
-# Backend 2: rootless Podman (or any OCI runtime exposing the same flags).
-# Shares the host kernel but adds user/mount/pid/net namespaces and a read-only
-# root filesystem. The launcher REFUSES known-unsafe configurations before it
-# starts anything, and records the effective config it actually used.
+# Rootless Podman. Shares the host kernel; adds user/mount/pid/net namespaces
+# and a read-only root. Refuses to run with known-unsafe flags and records the
+# argv it used as the policy digest.
 set -euo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck disable=SC1091
@@ -14,7 +13,6 @@ source "$RUN_DIR/hostside/ports.env"
 
 require command -v podman >/dev/null
 
-# --- fail-closed: must be genuinely rootless -------------------------------
 ROOTLESS="$(podman info --format '{{.Host.Security.Rootless}}' 2>/dev/null || echo false)"
 [ "$ROOTLESS" = "true" ] || die "podman is not rootless; refuse to run"
 
@@ -28,15 +26,13 @@ podman image exists "$IMAGE" || die "image $IMAGE not built; run: podman build -
 IMAGE_DIGEST="$(podman image inspect "$IMAGE" --format '{{.Digest}}' 2>/dev/null || echo unknown)"
 IMAGE_SIZE="$(podman image inspect "$IMAGE" --format '{{.Size}}' 2>/dev/null || echo 0)"
 
-# --- network policy ---------------------------------------------------------
 NET=(--network none)
 GATEWAY_MOUNT=()
 if [ "${RUN_MODE:-emulate}" = "agent" ]; then
-  # Give ONLY the gateway socket, via a bind mount; still --network none.
+  # Only the gateway socket; network stays none.
   GATEWAY_MOUNT=(--mount "type=bind,src=$RUN_DIR/hostside/gateway.sock,dst=/run/model.sock,ro")
 fi
 
-# --- assemble the argv, then verify it before running -----------------------
 ARGS=(
   run --rm
   # Map the invoking host user to uid 1000 inside so /work (owned by that
@@ -56,7 +52,7 @@ ARGS=(
   --mount "type=bind,src=$RUN_DIR/work,dst=/work,rw"
   --mount "type=bind,src=$RUN_DIR/input,dst=/input,ro"
   --mount "type=bind,src=$REPO_ROOT/lab,dst=/lab,ro"
-  # NOTE: hostside (canary/creds) is intentionally NOT mounted.
+  # hostside/ (canary, creds) is not mounted.
   --env DEMO_BACKEND=rootless-container
   --env DEMO_WORK=/work
   --env DEMO_RUN_ENV=/input/run.env
@@ -67,7 +63,7 @@ ARGS=(
   "$IMAGE"
 )
 
-# Reject dangerous flags if a well-meaning edit ever introduces them.
+# Guard against someone adding unsafe flags above.
 verify_no() {
   local bad="$1"
   for a in "${ARGS[@]}"; do

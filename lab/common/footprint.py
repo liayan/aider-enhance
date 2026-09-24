@@ -1,16 +1,13 @@
 #!/usr/bin/env python3
-"""Aggregate the operational cost of a run into footprint.json.
+"""Write collected/footprint.json: what a run cost.
 
-Combines:
-  - phase timings written by run.sh (timings.env: PREP_MS/RUN_MS/TEARDOWN_MS)
-  - the sampler's peak process count + RSS + host helper list
-  - the on-disk size of the *boundary itself* (container image / rootfs+kernel;
-    the process sandbox shares the host, so ~0)
-  - agent LLM cost: request count + tokens from the gateway log (agent mode),
-    or a friction-based estimate of extra tool calls (emulate mode)
+- phase timings from timings.env
+- peak RSS, process count and host helpers from the sampler
+- disk used by the boundary (image, or kernel + rootfs; 0 for the process sandbox)
+- model requests and tokens from gateway.log in agent mode, otherwise an
+  estimate based on blocked operations
 
 Usage: footprint.py <run_dir>
-Writes <run_dir>/collected/footprint.json and prints a one-line summary.
 """
 import glob
 import json
@@ -40,11 +37,10 @@ def dir_bytes(path):
 
 
 def boundary_disk_bytes(backend, meta, repo_root):
-    """Bytes on disk the boundary needs beyond the shared host userland."""
+    """Disk used by the boundary on top of the host userland."""
     if backend == "process-sandbox":
-        return 0  # reuses host /usr, /lib, /bin — no image
+        return 0  # uses host /usr, /lib, /bin
     if backend == "rootless-container":
-        # size recorded by the launcher, else 0 if not captured
         try:
             return int(meta.get("image_size_bytes", 0))
         except (TypeError, ValueError):
@@ -61,7 +57,7 @@ def boundary_disk_bytes(backend, meta, repo_root):
 
 
 def gateway_cost(run_dir):
-    """Parse gateway.log for request count and token usage (agent mode)."""
+    """Request count and token usage from gateway.log."""
     log = os.path.join(run_dir, "hostside", "gateway.log")
     if not os.path.exists(log):
         return None
@@ -81,12 +77,10 @@ def gateway_cost(run_dir):
 
 
 def friction_estimate(run_dir):
-    """Emulate-mode proxy for the extra work a sandbox imposes on a real agent.
+    """Rough agent cost for emulate mode.
 
-    Each isolation probe the boundary BLOCKS is an operation a fooled/confused
-    agent would have attempted and had to recover from — roughly one extra
-    tool-call round-trip each. This is an illustrative estimate, not a token
-    measurement; run --agent for real numbers.
+    Assumes one extra tool call per blocked operation. An estimate only; use
+    --agent for real numbers.
     """
     probes_path = os.path.join(run_dir, "collected", "probes.json")
     if not os.path.exists(probes_path):
@@ -95,7 +89,7 @@ def friction_estimate(run_dir):
     blocked = [p["probe"] for p in data.get("probes", [])
                if p.get("observed") == "blocked"
                and p["probe"] not in ("prompt-injection-marker",)]
-    EST_TOKENS_PER_RETRY = 350  # rough: one failed tool call + agent re-plan
+    EST_TOKENS_PER_RETRY = 350
     return {"blocked_ops": len(blocked),
             "est_extra_tool_calls": len(blocked),
             "est_extra_tokens": len(blocked) * EST_TOKENS_PER_RETRY,
@@ -110,7 +104,7 @@ def main(run_dir):
     repo_root = os.path.realpath(os.path.join(os.path.dirname(__file__), "..", ".."))
 
     timings = load_env(os.path.join(run_dir, "timings.env"))
-    # Prefer the preserved copy in collected/ (survives teardown wipe).
+    # hostside/ is gone after teardown; prefer the copy in collected/.
     sample = {}
     for cand in (os.path.join(collected, "footprint-sample.json"),
                  os.path.join(run_dir, "hostside", "footprint-sample.json")):

@@ -1,8 +1,7 @@
-"""Acceptance tests for the REAL coding task.
+"""Acceptance tests for the agent-mode task.
 
-The runner copies this file into the workspace *after* the agent finishes, so the
-model cannot see or tailor its output to these exact checks — this grades the
-agent's real work rather than the tests it wrote itself.
+Copied into the workspace after the agent finishes, so the agent never sees
+them.
 """
 import os
 import sys

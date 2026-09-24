@@ -1,12 +1,8 @@
 #!/usr/bin/env python3
-"""Tiny TCP->Unix-socket forwarder, run INSIDE the sandbox in agent mode.
+"""Forward 127.0.0.1:<port> to a Unix socket. Runs inside the sandbox.
 
-The sandbox has no network namespace sharing with the host, so the agent cannot
-reach the internet. The only egress we allow is the model gateway, exposed to the
-sandbox as a bind-mounted Unix socket. Aider speaks HTTP to a host:port, so this
-forwarder listens on 127.0.0.1:<port> (inside the sandbox's isolated loopback)
-and splices each connection to the mounted Unix socket. It is the single, audited
-network path; nothing else can leave.
+The sandbox has no network; the model gateway is mounted in as a Unix socket.
+Aider needs host:port, so this bridges the two.
 
 Usage: portfwd.py <listen_port> <unix_socket_path>
 """

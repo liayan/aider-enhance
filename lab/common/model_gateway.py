@@ -1,20 +1,12 @@
 #!/usr/bin/env python3
-"""Host-side model gateway. The API key stays on the host; the boundary never sees it.
+"""Host-side model gateway for agent mode.
 
-Only meaningful in real-agent mode (RUN_MODE=agent). The workload inside the
-sandbox is configured to talk to this gateway instead of the model vendor. The
-gateway:
-  - listens on a Unix socket (bwrap / container) that the boundary binds in,
-  - injects Authorization from the host environment,
-  - forwards to the pinned upstream,
-  - logs request metadata (never bodies, never the key) so you can show exactly
-    what the one allowed network path carried.
+Listens on a Unix socket that gets bind-mounted into the sandbox, adds the
+Authorization header from MODEL_API_KEY, and forwards to MODEL_UPSTREAM. The
+key never goes into the sandbox. gateway.log gets request metadata and token
+usage; gateway-trace.jsonl gets per-turn messages.
 
-For Firecracker, run the same forwarder bound to a vsock port instead of a Unix
-socket (a ~15-line asyncio shim); the injection logic is identical.
-
-This is deliberately minimal and is NOT a hardened proxy. Run it only on the
-disposable demo host.
+Not a hardened proxy.
 """
 import http.server
 import json
@@ -28,8 +20,8 @@ import urllib.request
 UPSTREAM = os.environ.get("MODEL_UPSTREAM", "https://api.openai.com").rstrip("/")
 API_KEY = os.environ.get("MODEL_API_KEY", "")
 LOG = os.environ.get("GATEWAY_LOG", "/dev/stderr")
-TRACE = os.environ.get("GATEWAY_TRACE", "")  # jsonl: full turn bodies (redacted)
-SOCK = os.environ.get("GATEWAY_SOCK", "")  # unix socket path; if empty use TCP PORT
+TRACE = os.environ.get("GATEWAY_TRACE", "")
+SOCK = os.environ.get("GATEWAY_SOCK", "")  # empty: listen on TCP PORT
 PORT = int(os.environ.get("GATEWAY_PORT", "8080"))
 _turn = [0]
 
@@ -41,9 +33,8 @@ def logline(**kw):
 
 
 def trace_turn(request_body, response_body, status):
-    """Record one full turn to the trajectory. The API key is never here: the
-    gateway ADDS it outbound, so neither the request nor response body carries it.
-    We defensively strip any authorization-looking fields anyway."""
+    """Append one turn to the trace file. The key is only added to the
+    outbound headers, but strip auth-like fields from the bodies anyway."""
     if not TRACE:
         return
     _turn[0] += 1
@@ -96,7 +87,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 self.end_headers()
                 self.wfile.write(data)
                 logline(event="response", status=resp.status, bytes_out=len(data))
-                # Account tokens so footprint.py can total the agent's real cost.
+                # footprint.py sums these.
                 try:
                     usage = json.loads(data).get("usage", {})
                     if usage:
@@ -105,7 +96,6 @@ class Handler(http.server.BaseHTTPRequestHandler):
                                 completion_tokens=usage.get("completion_tokens", 0))
                 except Exception:
                     pass
-                # Full-turn trajectory (chat completions only).
                 if "chat/completions" in self.path:
                     trace_turn(body, data, resp.status)
         except Exception as e:
@@ -118,7 +108,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
     def do_GET(self):   # noqa: N802
         self._forward("GET")
 
-    def log_message(self, *a):  # silence default stderr spam
+    def log_message(self, *a):
         pass
 
 

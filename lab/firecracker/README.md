@@ -1,18 +1,16 @@
 # Firecracker backend
 
-This is the strongest boundary (separate guest kernel) and the most setup.
-
-## One-time asset build
+## Guest assets
 
 ```bash
-# 1. Provide a Firecracker-compatible uncompressed kernel:
+# Firecracker-compatible uncompressed kernel
 cp /path/to/vmlinux lab/firecracker/assets/vmlinux
 
-# 2. Build the rootfs (needs root for the loop-mount step):
+# rootfs from the python image; needs root for the loop mount
 sudo ROOTFS_MB=800 lab/firecracker/build-guest.sh
-
-# 3. Pin the printed digests into versions.env before the talk.
 ```
+
+Pin the printed digests in `versions.env`.
 
 ## Run
 
@@ -20,21 +18,20 @@ sudo ROOTFS_MB=800 lab/firecracker/build-guest.sh
 ./lab/run.sh firecracker
 ```
 
-If `/dev/kvm`, the `firecracker` binary, the kernel, or the rootfs are missing,
-the backend records `status: not-executed` with a reason and exits 0 — a skipped
-Firecracker run is **labeled, never counted as a pass** (spec §10).
+If `/dev/kvm`, the `firecracker` binary, the kernel or the rootfs is missing,
+the run is recorded as `not-executed` with the reason and exits 0.
 
 ## How it works
 
-- Workspace, `/input`, and `/lab` are packed into small ext4 images.
-- `guest-init` (PID 1) mounts them and runs the same `lab/common/inside.sh`.
-- Coordination channel is vsock; in agent mode a host-side vsock forwarder
-  injects the model credential exactly like `model_gateway.py` (the key never
-  enters the guest image).
-- Outputs are written back onto the writable work image and extracted with
-  `debugfs` (no host mount required).
+- The workspace, `/input` and `lab/` are packed into ext4 images with
+  `mkfs.ext4 -d` and attached as drives.
+- `guest-init` runs as PID 1, mounts the drives and runs `lab/common/inside.sh`.
+- Outputs are written to the work drive and read back with `debugfs` after
+  the guest powers off.
+- Agent mode isn't supported yet: the config defines a vsock device, but
+  nothing on the host forwards it to the model gateway.
 
-## Reported in metadata.json
+## metadata.json
 
-guest-image digest, kernel digest, vCPU count, memory limit, network mode,
-workspace-transfer method.
+Kernel and rootfs digests, vCPU count, memory, network mode, workspace
+transfer method.

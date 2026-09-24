@@ -1,13 +1,11 @@
 #!/usr/bin/env bash
-# Check the host for each backend's prerequisites and print a readiness table.
-# Never changes anything. Exit 0 always; the table tells you what will run.
+# Report which backends this host can run. Read-only; always exits 0.
 set -uo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck disable=SC1091
 source "$HERE/common/lib.sh"
 
-# Sourcing lib.sh turns on `set -e`; these checks are pure reporting and must
-# never abort the script, so disable errexit here and always return success.
+# lib.sh turns on set -e; a failed check here shouldn't abort.
 set +e
 check() { # <label> <cmd...>
   local label="$1"; shift

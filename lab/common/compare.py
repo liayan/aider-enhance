@@ -1,9 +1,6 @@
 #!/usr/bin/env python3
-"""Cross-backend comparison matrix from results/*/collected/probes.json.
-
-Prints a probe x backend table (observed value + expected/unexpected flag) plus
-startup/teardown and identity notes, and writes comparison.md + comparison.json.
-Uses the most recent run per backend.
+"""Print security and cost tables across backends and write
+comparison.md/.json. Uses the latest run per backend.
 """
 import glob
 import json
@@ -73,7 +70,6 @@ def main(results_dir):
         sys.exit(f"no results under {results_dir}")
     backends = [b for b in ORDER if b in runs] + [b for b in runs if b not in ORDER]
 
-    # collect probe names in stable order
     names = []
     for b in backends:
         for p in runs[b]["data"].get("probes", []):
@@ -100,7 +96,6 @@ def main(results_dir):
     print("SECURITY — observed outcome per backend")
     print("\n".join(lines))
 
-    # ---- cost / footprint matrix ------------------------------------------
     metrics = cost_rows(runs, backends)
     cw2 = 20
     cheader = "metric".ljust(w) + "".join(b[:cw2-1].ljust(cw2) for b in backends)
@@ -119,7 +114,6 @@ def main(results_dir):
               f"kernel={m.get('host_kernel', m.get('kernel_digest','?'))} "
               f"unexpected={runs[b]['data'].get('unexpected_count','?')}")
 
-    # markdown
     md = ["# Sandbox comparison", "",
           "Observed probe outcome per backend (`ok`=as expected, `!!`=unexpected, `·`=info).",
           "", "| probe | " + " | ".join(backends) + " |",

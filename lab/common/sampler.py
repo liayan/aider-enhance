@@ -1,12 +1,10 @@
 #!/usr/bin/env python3
-"""Sample the footprint of a backend's process subtree until signalled.
+"""Sample RSS and process count for the backend's process tree.
 
 Usage: sampler.py <interval_sec> <out_json> <root_pid>
 
-Every tick it finds all live PIDs whose ancestry includes <root_pid> (the backend
-launcher), sums their RSS, and counts them. On SIGTERM/SIGINT it writes the peaks
-plus the distinct process names (comm) seen — the "extra tooling" a backend pulls
-in. Attribution by process tree keeps host services (sink, gateway) out of it.
+On SIGTERM/SIGINT writes the peaks and the process names seen. Only the tree
+under <root_pid> counts, so the sink and gateway are left out.
 """
 import json
 import os
@@ -87,7 +85,6 @@ def main():
         time.sleep(interval)
 
     peak["peak_rss_mb"] = round(peak["peak_rss_bytes"] / 1024 / 1024, 1)
-    # host helper binaries this backend needed (exclude the sampler/shell itself)
     peak["host_helpers"] = sorted(k for k in comms
                                   if k not in ("sampler.py", "python3", "bash", "sh", "sleep", "sleep"))
     peak["all_comms"] = comms

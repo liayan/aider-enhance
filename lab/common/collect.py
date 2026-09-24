@@ -1,13 +1,9 @@
 #!/usr/bin/env python3
-"""Copy declared outputs out of a finished run, safely.
+"""Copy allow-listed outputs out of the workspace.
 
-Collection is an attack surface: a compromised workload can plant symlinks,
-huge files, or extra paths to smuggle data past the boundary at copy time.
-This collector therefore:
-  - copies ONLY an explicit allow-list of names,
-  - refuses symlinks and anything that is not a regular file,
-  - caps each file's size,
-  - never follows a path outside the source workspace.
+The workload controls /work, so it could plant symlinks or huge files. Only
+listed names are copied; symlinks, non-regular files, files over the size cap
+and paths resolving outside the workspace are rejected.
 
 Usage: collect.py <work_dir> <dest_dir>
 """
@@ -15,7 +11,7 @@ import os
 import shutil
 import sys
 
-# Declared outputs only. Anything else the workload wrote stays behind.
+# name -> max size in bytes
 ALLOW = {
     "RESULT.md": 256 * 1024,
     "probes.json": 4 * 1024 * 1024,
@@ -24,7 +20,7 @@ ALLOW = {
     ".acceptance_rc": 16,
     "stdout.log": 8 * 1024 * 1024,
     "stderr.log": 8 * 1024 * 1024,
-    # real-agent trajectory artifacts
+    # agent mode
     ".aider.chat.history.md": 8 * 1024 * 1024,
     ".aider.llm.history": 16 * 1024 * 1024,
 }
@@ -47,7 +43,6 @@ def safe_copy(work_dir, dest_dir):
         if not os.path.isfile(src) or not stat_is_reg(st):
             report.append((name, "REJECTED: not a regular file"))
             continue
-        # Realpath must still live inside the workspace.
         if not os.path.realpath(src).startswith(work_real + os.sep):
             report.append((name, "REJECTED: escapes workspace"))
             continue

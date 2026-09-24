@@ -1,22 +1,16 @@
 #!/usr/bin/env python3
-"""Apply Landlock filesystem rules, then exec the workload. Fails closed.
+"""Apply Landlock rules and rlimits, then exec the workload.
 
-Landlock is a kernel LSM that lets an unprivileged process drop its own
-filesystem authority. We use it as defence-in-depth *behind* bwrap's mounts:
-even if a bind mount is looser than intended, Landlock restricts the process to
-an allow-list of paths.
+A second layer behind the bwrap mounts.
 
-Modes:
-  --abi            print the supported Landlock ABI version (0 if unavailable) and exit
-  --enforce -- CMD apply the ruleset, then execvp CMD
+  --abi             print the Landlock ABI version (0 if none)
+  --enforce -- CMD  apply the rules, then exec CMD
 
-Allow-list (read-write): /work, /tmp
-Allow-list (read-only) : /usr /bin /lib /lib64 /etc /input /lab /proc /dev
-Everything else (notably /demo/*, host home, /root) becomes inaccessible.
+Read-write: /work /tmp
+Read-only:  /usr /bin /lib /lib64 /etc /input /lab /proc /dev
 
-If the kernel supports Landlock but rule installation fails, this exits nonzero
-so the launcher aborts rather than running under-restricted. If the kernel has no
-Landlock at all, it warns and continues (bwrap mounts remain the boundary).
+If Landlock is supported but setup fails, exit nonzero. If the kernel has no
+Landlock, warn and rely on the bwrap mounts.
 """
 import ctypes
 import ctypes.util
@@ -28,7 +22,7 @@ LANDLOCK_ADD_RULE = 445
 LANDLOCK_RESTRICT_SELF = 446
 LANDLOCK_RULE_PATH_BENEATH = 1
 
-# Access bits (ABI 1..). We request a broad set and mask to what the ABI supports.
+# Masked down to what the running ABI supports.
 ACCESS_FS = {
     "execute": 1 << 0, "write_file": 1 << 1, "read_file": 1 << 2,
     "read_dir": 1 << 3, "remove_dir": 1 << 4, "remove_file": 1 << 5,
@@ -54,7 +48,7 @@ class PathBeneathAttr(ctypes.Structure):
 
 
 def abi():
-    # create_ruleset(NULL, 0, LANDLOCK_CREATE_RULESET_VERSION=1) -> ABI version
+    # create_ruleset(NULL, 0, LANDLOCK_CREATE_RULESET_VERSION) returns the ABI
     v = libc.syscall(LANDLOCK_CREATE_RULESET, None, ctypes.c_size_t(0), ctypes.c_uint32(1))
     return v if v > 0 else 0
 
@@ -66,7 +60,6 @@ def cap_for_abi(a):
         handled &= ~ACCESS_FS["refer"]
     if a < 3:
         handled &= ~ACCESS_FS["truncate"]
-    # ABI 4+ adds net rules; we don't use them here.
     return handled
 
 
@@ -99,7 +92,6 @@ def enforce():
         if r < 0:
             sys.exit(f"[landlock] add_rule {path} failed: {os.strerror(ctypes.get_errno())}")
 
-    # PR_SET_NO_NEW_PRIVS is required before restrict_self.
     if libc.prctl(38, 1, 0, 0, 0) != 0:  # PR_SET_NO_NEW_PRIVS=38
         sys.exit("[landlock] prctl(NO_NEW_PRIVS) failed")
     if libc.syscall(LANDLOCK_RESTRICT_SELF, ctypes.c_int(rs), ctypes.c_uint32(0)) != 0:
@@ -108,9 +100,8 @@ def enforce():
 
 
 def apply_rlimits():
-    """Enforce a resource budget with setrlimit, so the process sandbox has real
-    memory/PID/CPU caps comparable to the container's cgroup limits. Values come
-    from the environment (set by the launcher from versions.env)."""
+    """Set memory/PID/CPU rlimits from LIMIT_* env vars, to match the
+    container's cgroup limits."""
     import resource as R
 
     def parse_bytes(s):

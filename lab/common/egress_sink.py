@@ -1,13 +1,8 @@
 #!/usr/bin/env python3
-"""Loopback exfil sink. Records any request the boundary lets through.
+"""Host-side HTTP sink on 127.0.0.1. Logs every request to egress.log.
 
-Runs on the host during a run. Every request it receives is written to the run's
-egress.log, which the evaluator treats as authoritative proof that network egress
-(and, if it carried canary bytes, exfiltration) escaped the boundary.
-
-It binds 127.0.0.1 only and never forwards anything. Bodies are recorded as a
-sha256 digest plus length, not stored, so a real canary digest can be matched
-without persisting content.
+Any entry means egress got out of the boundary. Bodies are logged as digest
+and length only.
 
 Usage: egress_sink.py <port> <egress_log_path>
 """
