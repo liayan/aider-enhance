@@ -1,4 +1,4 @@
-# Talk run-through
+# Demo run-through
 
 About 8-10 minutes. Everything runs offline in emulate mode; `--agent` is
 optional.

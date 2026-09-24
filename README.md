@@ -191,4 +191,4 @@ prompt-injection-marker blocked    ok      blocked  ok
 approved-artifact       succeeded  ok      succeeded ok
 ```
 
-[TALK.md](TALK.md) has the talk run-through.
+[demo.md](demo.md) has the demo run-through.
