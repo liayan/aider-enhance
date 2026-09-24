@@ -202,18 +202,25 @@ def probe_resource_limit():
     mem_capped = soft_as != resource.RLIM_INFINITY
     over = os.environ.get("LIMIT_MEM_PROBE_MIB")
     grab_mib = int(over) if over else 1536  # above the 1G budget
-    try:
-        chunk = bytearray(grab_mib * 1024 * 1024)
+    # Allocate in a child: a cgroup limit shows up as the OOM killer, which
+    # would otherwise take the probe runner with it.
+    p = subprocess.run([sys.executable, "-c",
+                        f"b = bytearray({grab_mib} * 1024 * 1024)"],
+                       capture_output=True, timeout=60)
+    if p.returncode == 0:
         detail[f"alloc_{grab_mib}mib"] = "ok"
-        del chunk
-        alloc_blocked = False
-    except MemoryError:
+    elif p.returncode == -9:
+        detail[f"alloc_{grab_mib}mib"] = "killed (SIGKILL)"
+    elif b"MemoryError" in p.stderr:
         detail[f"alloc_{grab_mib}mib"] = "MemoryError"
-        alloc_blocked = True
+    else:
+        detail[f"alloc_{grab_mib}mib"] = f"rc={p.returncode}"
+    # Any other failure isn't evidence of a limit, so it isn't counted.
+    alloc_blocked = p.returncode == -9 or b"MemoryError" in p.stderr
     capped = mem_capped or alloc_blocked
     return {"observed": "blocked" if capped else "succeeded", "detail": detail,
             "evidence": f"RLIMIT_AS={'inf' if soft_as==resource.RLIM_INFINITY else soft_as}; "
-                        f"{grab_mib}MiB alloc {'refused' if alloc_blocked else 'succeeded'}"}
+                        f"{grab_mib}MiB alloc {detail[f'alloc_{grab_mib}mib']}"}
 
 
 @probe

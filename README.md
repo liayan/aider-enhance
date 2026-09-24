@@ -157,6 +157,7 @@ results/<date>-<backend>-<id>/collected/
 ├── acceptance.log       agent mode
 ├── agent.log
 ├── stdout.log, stderr.log
+├── console.log, firecracker.log   firecracker only
 └── RESULT.md
 ```
 
@@ -174,10 +175,10 @@ Tested on Linux 6.18, bwrap 0.9, Landlock ABI 7, aider 0.86.2:
 
 - `process-sandbox`: 0 unexpected results, emulate and `--agent --fake`.
 - `baseline`: every isolation probe succeeds, as expected.
-- `rootless-container`: image builds and the launcher runs, but it hasn't been
-  run end to end yet because the test host only had cgroup v1.
-- `firecracker`: not run (no KVM on the test host). Disk image creation was
-  tested separately.
+- `rootless-container`: 0 unexpected results in emulate mode (Linux 6.8,
+  cgroup v2, Podman 4.9).
+- `firecracker`: 0 unexpected results in emulate mode (Firecracker 1.17, CI
+  guest kernel 6.1, KVM on Linux 6.8).
 
 ```
 probe                   baseline           process-sandbox

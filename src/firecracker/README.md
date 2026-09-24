@@ -25,9 +25,14 @@ the run is recorded as `not-executed` with the reason and exits 0.
 
 - The workspace, `/input` and `src/` are packed into ext4 images with
   `mkfs.ext4 -d` and attached as drives.
-- `guest-init` runs as PID 1, mounts the drives and runs `src/common/inside.sh`.
-- Outputs are written to the work drive and read back with `debugfs` after
-  the guest powers off.
+- `guest-init` runs as PID 1, mounts the drives and runs `src/common/inside.sh`
+  as uid 1000 with no capabilities (`setpriv`), like the container backend.
+  It then reboots the guest, which ends the Firecracker process.
+- Outputs are written to the work drive, read back into `work/` with
+  `debugfs` after the guest exits, and collected with the same allow-list as
+  the other backends. The guest's serial console goes to
+  `collected/console.log` and Firecracker's own log to
+  `collected/firecracker.log`.
 - Agent mode isn't supported yet: the config defines a vsock device, but
   nothing on the host forwards it to the model gateway.
 

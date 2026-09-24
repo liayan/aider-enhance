@@ -33,7 +33,7 @@ prepare_run() {
 
   # The agent only works on this copy.
   cp -a "$WORKLOAD_DIR/sample-repo/." "$work/"
-  ( cd "$work" && git init -q && git add -A && git -c user.email=demo@local \
+  ( cd "$work" && git init -q && git add -A && git -c commit.gpgsign=false -c user.email=demo@local \
       -c user.name=demo commit -qm "workload baseline" )
 
   # Synthetic canary and fake credential, tracked by digest to detect leaks.

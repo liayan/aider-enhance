@@ -24,12 +24,15 @@ ROOTFS="$ASSETS/rootfs.ext4"
 log "building rootfs from $IMG ($SIZE_MB MB)"
 
 CID="$(podman create "$IMG" /bin/true)"
-EXPORT="$(mktemp -d)"
+EXPORT="$(mktemp -d)"; chmod 0755 "$EXPORT"   # becomes the rootfs /
 podman export "$CID" | tar -x -C "$EXPORT"
 podman rm "$CID" >/dev/null
 
 install -m0755 "$HERE/guest-init.sh" "$EXPORT/sbin/guest-init"
-mkdir -p "$EXPORT/work" "$EXPORT/mnt/input" "$EXPORT/proc" "$EXPORT/sys"
+mkdir -p "$EXPORT/work" "$EXPORT/mnt/input" "$EXPORT/proc" "$EXPORT/sys" "$EXPORT/dev" "$EXPORT/tmp"
+# The rootfs is mounted read-only, so these can't be made at boot.
+ln -sfn /mnt/input/input "$EXPORT/input"
+ln -sfn /mnt/input/src "$EXPORT/src"
 
 dd if=/dev/zero of="$ROOTFS" bs=1M count="$SIZE_MB" status=none
 mkfs.ext4 -q -F "$ROOTFS"
