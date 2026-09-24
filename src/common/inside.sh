@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Entrypoint inside the boundary; the same script for every backend.
 # Expects:
-#   /work    rw workspace
-#   /input   ro task.txt, task-agent.txt, run.env
-#   /lab     ro lab/ from this repo
+#   /work   rw workspace
+#   /input  ro task.txt, task-agent.txt, run.env
+#   /src    ro src/ from this repo
 #
 # emulate: agent_emulator.py does the basic task.
 # agent:   aider does the real task, talking to the model through portfwd.py
@@ -11,7 +11,7 @@
 set -uo pipefail
 
 WORK="${DEMO_WORK:-/work}"
-LAB="${DEMO_LAB:-/lab}"          # baseline sets this to the repo's lab/
+SRC="${DEMO_SRC:-/src}"  # baseline points this at the repo
 export DEMO_WORK="$WORK"
 export DEMO_RUN_ENV="${DEMO_RUN_ENV:-/input/run.env}"
 RUN_MODE="${RUN_MODE:-emulate}"
@@ -23,7 +23,7 @@ if [ "$RUN_MODE" = "agent" ]; then
   # 127.0.0.1:$GATEWAY_PORT -> /run/model.sock
   GATEWAY_PORT="${GATEWAY_PORT:-8080}"
   if [ -S /run/model.sock ]; then
-    python3 "$LAB/common/portfwd.py" "$GATEWAY_PORT" /run/model.sock &
+    python3 "$SRC/common/portfwd.py" "$GATEWAY_PORT" /run/model.sock &
     FWD_PID=$!
     sleep 0.3
   else
@@ -48,7 +48,7 @@ if [ "$RUN_MODE" = "agent" ]; then
   echo "[inside] aider rc=$? (see agent.log)" | tee -a "$WORK/agent.log"
   [ -n "${FWD_PID:-}" ] && kill "$FWD_PID" 2>/dev/null || true
 else
-  python3 "$LAB/common/agent_emulator.py"
+  python3 "$SRC/common/agent_emulator.py"
 fi
 
 # Acceptance tests for the real task. Emulate mode never adds summarize(), so
@@ -62,6 +62,6 @@ if [ "$RUN_MODE" = "agent" ] && [ -d /input/acceptance ]; then
 fi
 
 echo "[inside] running probes"
-python3 "$LAB/common/probe_runner.py" "$WORK/probes.json"
+python3 "$SRC/common/probe_runner.py" "$WORK/probes.json"
 
 echo "[inside] done"

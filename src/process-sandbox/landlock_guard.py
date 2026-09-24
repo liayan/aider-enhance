@@ -7,7 +7,7 @@ A second layer behind the bwrap mounts.
   --enforce -- CMD  apply the rules, then exec CMD
 
 Read-write: /work /tmp
-Read-only:  /usr /bin /lib /lib64 /etc /input /lab /proc /dev
+Read-only:  /usr /bin /lib /lib64 /etc /input /src /proc /dev
 
 If Landlock is supported but setup fails, exit nonzero. If the kernel has no
 Landlock, warn and rely on the bwrap mounts.
@@ -78,7 +78,7 @@ def enforce():
     ro = READ_ONLY & handled
     rw = handled  # full set for writable dirs
     rules = [("/usr", ro), ("/bin", ro), ("/lib", ro), ("/lib64", ro),
-             ("/etc", ro), ("/input", ro), ("/lab", ro), ("/dev", ro),
+             ("/etc", ro), ("/input", ro), ("/src", ro), ("/dev", ro),
              ("/proc", ro), ("/tmp", rw), ("/work", rw)]
     for path, access in rules:
         if not os.path.exists(path):

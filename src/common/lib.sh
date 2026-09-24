@@ -2,16 +2,16 @@
 # Shared helpers for host-side scripts. Source, don't execute.
 set -euo pipefail
 
-LAB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-REPO_ROOT="$(cd "$LAB_DIR/.." && pwd)"
+SRC_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+REPO_ROOT="$(cd "$SRC_DIR/.." && pwd)"
 # shellcheck disable=SC1091
-source "$LAB_DIR/versions.env"
+source "$SRC_DIR/versions.env"
 
 WORKLOAD_DIR="$REPO_ROOT/workload"
 RESULTS_DIR="$REPO_ROOT/results"
 
 c_red=$'\033[31m'; c_grn=$'\033[32m'; c_yel=$'\033[33m'; c_blu=$'\033[34m'; c_rst=$'\033[0m'
-log()  { printf '%s[lab]%s %s\n'  "$c_blu" "$c_rst" "$*" >&2; }
+log()  { printf '%s[src]%s %s\n'  "$c_blu" "$c_rst" "$*" >&2; }
 ok()   { printf '%s[ ok]%s %s\n'  "$c_grn" "$c_rst" "$*" >&2; }
 warn() { printf '%s[warn]%s %s\n' "$c_yel" "$c_rst" "$*" >&2; }
 die()  { printf '%s[FAIL]%s %s\n' "$c_red" "$c_rst" "$*" >&2; exit 1; }

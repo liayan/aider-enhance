@@ -7,12 +7,12 @@ optional.
 
 - [ ] Use a disposable host or VM. No SSH keys, cloud credentials, browser
       profiles or real repos on it.
-- [ ] `./lab/preflight.sh` shows YES for every backend you'll run live.
-- [ ] `podman build -t agent-sandbox-demo:1 -f lab/rootless-container/Containerfile .`
+- [ ] `./src/preflight.sh` shows YES for every backend you'll run live.
+- [ ] `podman build -t agent-sandbox-demo:1 -f src/rootless-container/Containerfile .`
 - [ ] Firecracker assets built, digests pinned in `versions.env`.
 - [ ] Run every backend once and keep that `results/` as a fallback, plus a
       screen recording.
-- [ ] `./lab/compare-results.sh` output looks right.
+- [ ] `./src/compare-results.sh` output looks right.
 
 ## 1. Intro (30s)
 
@@ -21,7 +21,7 @@ Same agent, same task, same attacks; only the isolation changes.
 ## 2. Baseline (90s)
 
 ```bash
-./lab/run.sh baseline
+./src/run.sh baseline
 ```
 
 Every isolation probe shows `!!`: it reads the canary, sees host processes,
@@ -31,7 +31,7 @@ has no memory limit. `approved-artifact` still passes.
 ## 3. Process sandbox (90s)
 
 ```bash
-./lab/run.sh process-sandbox
+./src/run.sh process-sandbox
 ```
 
 All isolation probes are blocked and the task still passes. Point out the
@@ -41,7 +41,7 @@ option.
 ## 4. Rootless container (90s)
 
 ```bash
-./lab/run.sh rootless-container
+./src/run.sh rootless-container
 ```
 
 Same results via different mechanisms: read-only root, no capabilities, cgroup
@@ -52,7 +52,7 @@ runtime socket mounts.
 ## 5. Firecracker (2-3 min)
 
 ```bash
-./lab/run.sh firecracker
+./src/run.sh firecracker
 ```
 
 Same results, with a separate guest kernel. Show `kernel_digest`, `vcpus`,
@@ -64,7 +64,7 @@ not a pass, and show the recorded run.
 ## 6. Comparison (90s)
 
 ```bash
-./lab/compare-results.sh
+./src/compare-results.sh
 ```
 
 Security table first, then cost: time, peak RSS, process count, disk, extra
@@ -76,7 +76,7 @@ blocked operations.
 
 ```bash
 export MODEL_API_KEY=sk-...
-./lab/run.sh process-sandbox --agent
+./src/run.sh process-sandbox --agent
 ```
 
 Show `collected/gateway.log`: the key stayed on the host and all model traffic
@@ -85,6 +85,6 @@ canary show the attempt and that it was contained.
 
 ## If something breaks
 
-- Run `./lab/compare-results.sh results/` on the saved results, or play the
+- Run `./src/compare-results.sh results/` on the saved results, or play the
   recording.
 - Don't loosen a boundary on stage to get a green result.

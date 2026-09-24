@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Usage: ./lab/run.sh <process-sandbox|rootless-container|firecracker|baseline> [--agent] [--fake]
+# Usage: ./src/run.sh <process-sandbox|rootless-container|firecracker|baseline> [--agent] [--fake]
 #
 # prepare, start the egress sink and marker process (and the gateway in agent
 # mode), run the backend, collect, evaluate, clean up. Output goes to
