@@ -23,13 +23,48 @@ def latest_per_backend(results_dir):
         except Exception:
             continue
         backend = data.get("backend", "unknown")
-        meta_path = os.path.join(run_dir, "collected", "metadata.json")
-        meta = json.load(open(meta_path)) if os.path.exists(meta_path) else {}
+        col = os.path.join(run_dir, "collected")
+        meta = json.load(open(os.path.join(col, "metadata.json"))) \
+            if os.path.exists(os.path.join(col, "metadata.json")) else {}
+        fp = json.load(open(os.path.join(col, "footprint.json"))) \
+            if os.path.exists(os.path.join(col, "footprint.json")) else {}
         key = os.path.basename(run_dir)
         prev = runs.get(backend)
         if not prev or key > prev["key"]:
-            runs[backend] = {"key": key, "data": data, "meta": meta}
+            runs[backend] = {"key": key, "data": data, "meta": meta, "fp": fp}
     return runs
+
+
+def cost_rows(runs, backends):
+    """Return (header, rows) for the operational-cost matrix."""
+    def g(b, *path, default="—"):
+        if runs[b]["data"].get("status") == "not-executed":
+            return "not-exec"
+        cur = runs[b]["fp"]
+        for p in path:
+            if isinstance(cur, dict) and p in cur:
+                cur = cur[p]
+            else:
+                return default
+        return cur
+
+    metrics = [
+        ("total time (ms)",     lambda b: g(b, "timing_ms", "total")),
+        ("  prepare (ms)",      lambda b: g(b, "timing_ms", "prepare")),
+        ("  run (ms)",          lambda b: g(b, "timing_ms", "run")),
+        ("  teardown (ms)",     lambda b: g(b, "timing_ms", "teardown")),
+        ("peak RSS (MB)",       lambda b: g(b, "peak_rss_mb")),
+        ("peak procs",          lambda b: g(b, "peak_proc_count")),
+        ("boundary disk (MB)",  lambda b: g(b, "boundary_disk_mb")),
+        ("host helpers",        lambda b: (lambda v: v if isinstance(v, str) else (",".join(v) or "none"))(g(b, "host_helpers", default=[]))),
+        ("workspace transfer",  lambda b: g(b, "workspace_transfer")),
+        ("agent tokens",        lambda b: g(b, "agent_cost", "total_tokens",
+                                            default=g(b, "agent_cost", "est_extra_tokens"))),
+        ("agent calls",         lambda b: g(b, "agent_cost", "llm_requests",
+                                            default=g(b, "agent_cost", "est_extra_tool_calls"))),
+        ("token basis",         lambda b: g(b, "agent_cost", "mode")),
+    ]
+    return metrics
 
 
 def main(results_dir):
@@ -62,7 +97,20 @@ def main(results_dir):
         row = name.ljust(w) + "".join(cell(b, name).ljust(cw) for b in backends)
         lines.append(row)
 
+    print("SECURITY — observed outcome per backend")
     print("\n".join(lines))
+
+    # ---- cost / footprint matrix ------------------------------------------
+    metrics = cost_rows(runs, backends)
+    cw2 = 20
+    cheader = "metric".ljust(w) + "".join(b[:cw2-1].ljust(cw2) for b in backends)
+    print("\nCOST / FOOTPRINT")
+    print(cheader)
+    print("-" * len(cheader))
+    for label, fn in metrics:
+        row = label.ljust(w) + "".join(str(fn(b)).ljust(cw2) for b in backends)
+        print(row)
+
     print()
     for b in backends:
         m = runs[b]["meta"]
@@ -78,6 +126,12 @@ def main(results_dir):
           "|" + "---|" * (len(backends) + 1)]
     for name in names:
         md.append("| " + name + " | " + " | ".join(cell(b, name).strip() for b in backends) + " |")
+    md += ["", "## Cost / footprint", "",
+           "| metric | " + " | ".join(backends) + " |",
+           "|" + "---|" * (len(backends) + 1)]
+    for label, fn in metrics:
+        md.append("| " + label.strip() + " | "
+                  + " | ".join(str(fn(b)) for b in backends) + " |")
     md += ["", "## Backend metadata", ""]
     for b in backends:
         m = runs[b]["meta"]
@@ -85,7 +139,9 @@ def main(results_dir):
                   f"policy `{m.get('policy_digest','?')[:22]}`, "
                   f"unexpected `{runs[b]['data'].get('unexpected_count','?')}`, "
                   f"transfer `{m.get('workspace_transfer','bind')}`")
-    md += ["", "> A `not-executed` Firecracker cell is a skipped run, not a pass."]
+    md += ["", "> A `not-executed` Firecracker cell is a skipped run, not a pass.",
+           "> Agent tokens/calls are **measured** in `--agent` mode and **estimated** "
+           "from blocked-op friction in emulate mode; compare like-for-like."]
     out_md = os.path.join(results_dir, "comparison.md")
     open(out_md, "w").write("\n".join(md) + "\n")
     json.dump({b: runs[b]["data"] for b in backends},

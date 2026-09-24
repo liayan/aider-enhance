@@ -9,6 +9,7 @@
 set -uo pipefail
 
 WORK="${DEMO_WORK:-/work}"
+LAB="${DEMO_LAB:-/lab}"          # /lab inside a sandbox; repo lab/ on the host baseline
 export DEMO_WORK="$WORK"
 export DEMO_RUN_ENV="${DEMO_RUN_ENV:-/input/run.env}"
 RUN_MODE="${RUN_MODE:-emulate}"
@@ -27,11 +28,11 @@ if [ "$RUN_MODE" = "agent" ]; then
   rc=$?
   echo "[inside] aider rc=$rc"
 else
-  python3 /lab/common/agent_emulator.py
+  python3 "$LAB/common/agent_emulator.py"
 fi
 
 # ---- probe phase -----------------------------------------------------------
 echo "[inside] running probes"
-python3 /lab/common/probe_runner.py "$WORK/probes.json"
+python3 "$LAB/common/probe_runner.py" "$WORK/probes.json"
 
 echo "[inside] done"

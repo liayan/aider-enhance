@@ -21,6 +21,7 @@ ROOTLESS="$(podman info --format '{{.Host.Security.Rootless}}' 2>/dev/null || ec
 IMAGE="${CONTAINER_IMAGE}"
 podman image exists "$IMAGE" || die "image $IMAGE not built; run: podman build -t ${IMAGE#localhost/} -f $HERE/Containerfile $REPO_ROOT"
 IMAGE_DIGEST="$(podman image inspect "$IMAGE" --format '{{.Digest}}' 2>/dev/null || echo unknown)"
+IMAGE_SIZE="$(podman image inspect "$IMAGE" --format '{{.Size}}' 2>/dev/null || echo 0)"
 
 # --- network policy ---------------------------------------------------------
 NET=(--network none)
@@ -82,7 +83,7 @@ set -e
 [ -f "$RUN_DIR/work/probes.json" ] && cp "$RUN_DIR/work/probes.json" "$RUN_DIR/collected/probes.json"
 
 write_metadata "$RUN_DIR" "rootless-container" "$POLICY_DIGEST" \
-  "image=$IMAGE" "image_digest=$IMAGE_DIGEST" \
+  "image=$IMAGE" "image_digest=$IMAGE_DIGEST" "image_size_bytes=$IMAGE_SIZE" \
   "network_mode=$([ "${RUN_MODE:-emulate}" = agent ] && echo gateway-socket || echo none)" \
   "read_only_root=true" "caps=drop-all" "run_mode=${RUN_MODE:-emulate}" "inside_rc=$RC"
 

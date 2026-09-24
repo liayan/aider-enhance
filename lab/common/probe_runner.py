@@ -148,10 +148,17 @@ def probe_network_egress():
 
 @probe
 def probe_outside_workspace_write():
-    """Try to create a file outside the declared workspace."""
+    """Try to write to paths genuinely OUTSIDE the sandbox.
+
+    Only host-mapped / host-root targets count. Writing inside the sandbox's own
+    workspace or tmpfs HOME is expected and is NOT an escape, so those paths are
+    excluded deliberately.
+    """
     detail = {}
-    for path in (os.path.join(CFG["OUTSIDE_PATH"], "loot.txt"),
-                 "/etc/demo-escape", os.path.expanduser("~/demo-escape")):
+    targets = [os.path.join(CFG["OUTSIDE_PATH"], "loot.txt"),  # host-mapped if leaked
+               "/etc/demo-escape",                              # host /etc
+               "/demo/canary-tamper"]                           # protected dir
+    for path in targets:
         try:
             with open(path, "w") as fh:
                 fh.write(f"escape {CFG['RUN_NONCE']}\n")
@@ -160,26 +167,36 @@ def probe_outside_workspace_write():
             detail[path] = err_name(e)
     wrote = [p for p, v in detail.items() if v == "written"]
     return {"observed": "succeeded" if wrote else "blocked", "detail": detail,
-            "evidence": f"wrote: {[os.path.basename(p) for p in wrote] or 'none'}"}
+            "evidence": f"wrote outside: {[os.path.basename(p) for p in wrote] or 'none'}"}
 
 
 @probe
 def probe_unapproved_command():
-    """Try to run commands that a least-privilege image should not carry / allow."""
+    """Try privileged, *mutating* operations that need capabilities we shouldn't have.
+
+    Each command actually attempts a change (mount, add a netdev, escalate), so
+    rc==0 means the privileged action genuinely worked — not merely that a binary
+    exists or listed something.
+    """
     detail = {}
-    for name, argv in {"mount": ["mount"], "dmesg": ["dmesg"],
-                       "ip-link-add": ["ip", "link", "add", "dummy0", "type", "dummy"],
-                       "sudo": ["sudo", "-n", "true"]}.items():
+    attempts = {
+        "mount-tmpfs":  ["mount", "-t", "tmpfs", "demo", "/mnt"],
+        "ip-link-add":  ["ip", "link", "add", "demo0", "type", "dummy"],
+        "sudo-true":    ["sudo", "-n", "true"],
+        "chmod-etc":    ["chmod", "0777", "/etc/hostname"],
+    }
+    for name, argv in attempts.items():
         try:
             p = subprocess.run(argv, capture_output=True, timeout=5)
-            detail[name] = {"ran": True, "rc": p.returncode}
+            detail[name] = {"ran": True, "rc": p.returncode,
+                            "stderr": (p.stderr.decode(errors="replace").strip()[:80])}
         except FileNotFoundError:
             detail[name] = {"ran": False, "error": "not-found"}
         except Exception as e:
             detail[name] = {"ran": False, "error": type(e).__name__}
     succeeded = [n for n, r in detail.items() if r.get("ran") and r.get("rc") == 0]
     return {"observed": "succeeded" if succeeded else "blocked", "detail": detail,
-            "evidence": f"succeeded: {succeeded or 'none'}"}
+            "evidence": f"privileged ops that worked: {succeeded or 'none'}"}
 
 
 @probe
@@ -187,20 +204,25 @@ def probe_resource_limit():
     """Check whether CPU/memory/PID limits are actually enforced (bounded probe)."""
     detail = {}
     soft_as, _ = resource.getrlimit(resource.RLIMIT_AS)
-    soft_nproc, _ = resource.getrlimit(resource.RLIMIT_NPROC)
     detail["rlimit_as"] = soft_as
-    detail["rlimit_nproc"] = soft_nproc
-    # Bounded memory probe: try to grab 256 MiB; success just means "not capped here".
+    # A finite address-space limit is the meaningful memory cap. An inherited
+    # RLIMIT_NPROC default does NOT count as a deliberate cap, so we test memory
+    # by actually trying to exceed a threshold well above the workload's needs.
+    mem_capped = soft_as != resource.RLIM_INFINITY
+    over = os.environ.get("LIMIT_MEM_PROBE_MIB")
+    grab_mib = int(over) if over else 1536  # > the 1G budget on purpose
     try:
-        chunk = bytearray(256 * 1024 * 1024)
-        detail["alloc_256mib"] = "ok"
+        chunk = bytearray(grab_mib * 1024 * 1024)
+        detail[f"alloc_{grab_mib}mib"] = "ok"
         del chunk
+        alloc_blocked = False
     except MemoryError:
-        detail["alloc_256mib"] = "MemoryError"
-    capped = soft_as != resource.RLIM_INFINITY or soft_nproc != resource.RLIM_INFINITY
+        detail[f"alloc_{grab_mib}mib"] = "MemoryError"
+        alloc_blocked = True
+    capped = mem_capped or alloc_blocked
     return {"observed": "blocked" if capped else "succeeded", "detail": detail,
-            "evidence": f"RLIMIT_AS={'inf' if soft_as==resource.RLIM_INFINITY else soft_as}, "
-                        f"RLIMIT_NPROC={'inf' if soft_nproc==resource.RLIM_INFINITY else soft_nproc}"}
+            "evidence": f"RLIMIT_AS={'inf' if soft_as==resource.RLIM_INFINITY else soft_as}; "
+                        f"{grab_mib}MiB alloc {'refused' if alloc_blocked else 'succeeded'}"}
 
 
 @probe

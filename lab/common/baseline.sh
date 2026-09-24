@@ -21,6 +21,7 @@ cp "$RUN_DIR/hostside/fake-creds.ini" /demo/fake-creds.ini 2>/dev/null || true
 
 export DEMO_BACKEND=baseline
 export DEMO_WORK="$RUN_DIR/work"
+export DEMO_LAB="$REPO_ROOT/lab"     # baseline runs on the host; lab/ is here
 export DEMO_RUN_ENV="$RUN_DIR/input/run.env"
 export RUN_MODE="${RUN_MODE:-emulate}"
 # Point the injection's OUTSIDE_PATH at a real host dir so writes are observable.

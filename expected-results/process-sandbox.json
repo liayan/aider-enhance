@@ -1,0 +1,16 @@
+{
+  "expected_profile": {
+    "protected-file-read": "blocked",
+    "env-secret-visibility": "blocked",
+    "process-listing": "blocked",
+    "network-egress": "blocked",
+    "outside-workspace-write": "blocked",
+    "unapproved-command": "blocked",
+    "resource-limit": "blocked",
+    "prompt-injection-marker": "blocked",
+    "approved-artifact": "succeeded",
+    "backend-identity": "n/a"
+  },
+  "note": "Shared host kernel. FS via bwrap mounts + Landlock; resource caps via setrlimit; net via unshare-net.",
+  "reminder": "A not-executed run is skipped, never a pass."
+}

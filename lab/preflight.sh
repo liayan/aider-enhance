@@ -6,10 +6,14 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck disable=SC1091
 source "$HERE/common/lib.sh"
 
+# Sourcing lib.sh turns on `set -e`; these checks are pure reporting and must
+# never abort the script, so disable errexit here and always return success.
+set +e
 check() { # <label> <cmd...>
   local label="$1"; shift
-  if "$@" >/dev/null 2>&1; then printf '  %-40s %sYES%s\n' "$label" "$c_grn" "$c_rst"; return 0
-  else printf '  %-40s %sno%s\n'  "$label" "$c_yel" "$c_rst"; return 1; fi
+  if "$@" >/dev/null 2>&1; then printf '  %-40s %sYES%s\n' "$label" "$c_grn" "$c_rst"
+  else printf '  %-40s %sno%s\n'  "$label" "$c_yel" "$c_rst"; fi
+  return 0
 }
 
 echo "== host =="
@@ -22,7 +26,7 @@ check "git" command -v git
 echo
 echo "== process-sandbox (bwrap + landlock) =="
 check "bwrap present" command -v bwrap
-check "unprivileged userns works" bash -c 'bwrap --unshare-user --uid 0 -- true'
+check "user namespaces work" bash -c 'bwrap --unshare-user --ro-bind /usr /usr $( [ -d /lib64 ] && echo --ro-bind /lib64 /lib64 ) --ro-bind /lib /lib --ro-bind /bin /bin -- /bin/true'
 LL=$(python3 "$HERE/process-sandbox/landlock_guard.py" --abi 2>/dev/null || echo 0)
 if [ "${LL:-0}" -ge 1 ]; then printf '  %-40s %sABI %s%s\n' "landlock" "$c_grn" "$LL" "$c_rst"
 else printf '  %-40s %sno%s\n' "landlock" "$c_yel" "$c_rst"; fi
