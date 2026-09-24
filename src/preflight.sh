@@ -25,6 +25,7 @@ echo
 echo "== process-sandbox (bwrap + landlock) =="
 check "bwrap present" command -v bwrap
 check "user namespaces work" bash -c 'bwrap --unshare-user --ro-bind /usr /usr $( [ -d /lib64 ] && echo --ro-bind /lib64 /lib64 ) --ro-bind /lib /lib --ro-bind /bin /bin -- /bin/true'
+check "systemd user scope with limits" bash -c 'systemd-run --user --scope --quiet -p MemoryMax=64M -p TasksMax=8 -- true'
 LL=$(python3 "$HERE/process-sandbox/landlock_guard.py" --abi 2>/dev/null || echo 0)
 if [ "${LL:-0}" -ge 1 ]; then printf '  %-40s %sABI %s%s\n' "landlock" "$c_grn" "$LL" "$c_rst"
 else printf '  %-40s %sno%s\n' "landlock" "$c_yel" "$c_rst"; fi

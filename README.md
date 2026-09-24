@@ -6,7 +6,7 @@ boundary costs.
 
 | Backend | Isolation | Kernel |
 |---------|-----------|--------|
-| `process-sandbox`    | bubblewrap + Landlock + setrlimit | host |
+| `process-sandbox`    | bubblewrap + Landlock, cgroup limits (systemd user scope) | host |
 | `rootless-container` | rootless Podman, read-only root, no caps, cgroup limits | host |
 | `firecracker`        | microVM | separate guest kernel |
 
@@ -182,14 +182,14 @@ Unexpected probe results per backend and mode (0 means every probe matched):
 
 | Backend | emulate | `--agent --fake` | `--agent`, real model |
 |---|---|---|---|
-| `process-sandbox` | 0 | 0 | not run yet |
+| `process-sandbox` | 0 | 0 | 0 (DeepSeek, 5 turns) |
 | `rootless-container` | 0 | 0 | 0 (DeepSeek, 5 turns) |
 | `firecracker` | 0 | 0 | 0 (DeepSeek, 5-6 turns) |
 
 Hosts:
 
-- process-sandbox: Linux 6.18, bwrap 0.9, Landlock ABI 7; emulate also on
-  Linux 6.8 (Landlock ABI 4).
+- process-sandbox: Ubuntu 24.04, Linux 6.8, bwrap, Landlock ABI 4, systemd 255
+  user scope. Earlier emulate runs also on Linux 6.18 (Landlock ABI 7).
 - rootless-container and firecracker: Ubuntu 24.04, Linux 6.8, cgroup v2,
   Podman 4.9, Firecracker 1.17, CI guest kernel 6.1.155.
 - aider 0.86.2 everywhere. The real-model runs used `openai/deepseek-chat`
