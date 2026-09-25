@@ -24,7 +24,7 @@ For everyday terminal use, the installable `aider-local` adapter keeps file
 edits local and lets aider choose a rootless container or Firecracker microVM
 for each proposed test command. Tests run on disposable project copies, and
 failures return to aider for repair. `auto` is the default; you can also pin
-the backend. See [installation and task-based selection](agent.md#local-editing-with-task-based-test-isolation).
+the backend. See [installation and task-based selection](runbook.md#local-editing-with-task-based-test-isolation).
 
 On Linux, with [uv](https://docs.astral.sh/uv/getting-started/installation/)
 and rootless Podman installed, start from this repository root:
@@ -40,10 +40,10 @@ The last command needs no model or API key: it runs two example tests in a
 container. The package installs `aider-local` and `aider-test`, pins aider
 0.86.2, and keeps its Python dependencies isolated.
 
-Then follow [model setup and the edit-and-test walkthrough](agent.md#3-connect-a-model).
-The guide also covers [pipx and venv installation](agent.md#1-install-the-terminal-commands),
-[microVM setup](agent.md#2-prepare-a-test-backend), and
-[troubleshooting](agent.md#troubleshooting). Both backends need their test
+Then follow [model setup and the edit-and-test walkthrough](runbook.md#3-connect-a-model).
+The guide also covers [pipx and venv installation](runbook.md#1-install-the-terminal-commands),
+[microVM setup](runbook.md#2-prepare-a-test-backend), and
+[troubleshooting](runbook.md#troubleshooting). Both backends need their test
 dependencies installed before execution; installing the Python package alone
 does not provision a sandbox.
 
@@ -126,7 +126,7 @@ Agent mode has been tested with all three backends (`--fake`). For
 for `firecracker`, build `rootfs-aider.ext4` with `WITH_AIDER=1`
 (see [src/firecracker/README.md](src/firecracker/README.md)).
 
-[agent.md](agent.md) explains where aider runs, what crosses the boundary and
+[runbook.md](runbook.md) explains where aider runs, what crosses the boundary and
 how to run it.
 
 ### Trajectory
