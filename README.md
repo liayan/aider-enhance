@@ -18,6 +18,37 @@ backend.
 `aider/` is a submodule of upstream aider at the version in `src/versions.env`
 (`git submodule update --init`).
 
+## Interactive local editing
+
+For everyday terminal use, the installable `aider-local` adapter keeps file
+edits local and lets aider choose a rootless container or Firecracker microVM
+for each proposed test command. Tests run on disposable project copies, and
+failures return to aider for repair. `auto` is the default; you can also pin
+the backend. See [installation and task-based selection](agent.md#local-editing-with-task-based-test-isolation).
+
+On Linux, with [uv](https://docs.astral.sh/uv/getting-started/installation/)
+and rootless Podman installed, start from this repository root:
+
+```bash
+uv tool install --python python3.12 .
+podman build -t agent-sandbox-demo:1 -f src/rootless-container/Containerfile .
+aider-test --workspace examples/hello-project \
+  'python3 -m unittest discover -s tests'
+```
+
+The last command needs no model or API key: it runs two example tests in a
+container. The package installs `aider-local` and `aider-test`, pins aider
+0.86.2, and keeps its Python dependencies isolated.
+
+Then follow [model setup and the edit-and-test walkthrough](agent.md#3-connect-a-model).
+The guide also covers [pipx and venv installation](agent.md#1-install-the-terminal-commands),
+[microVM setup](agent.md#2-prepare-a-test-backend), and
+[troubleshooting](agent.md#troubleshooting). Both backends need their test
+dependencies installed before execution; installing the Python package alone
+does not provision a sandbox.
+
+This is a separate mode from the whole-agent sandbox demo described below.
+
 ## Why
 
 A coding agent runs with your permissions. If something in the repo talks it

@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "aider-local-tests"
+version = "0.1.0"
+description = "Local aider editing with disposable Podman or Firecracker test environments"
+requires-python = ">=3.10,<3.13"
+dependencies = ["aider-chat==0.86.2"]
+
+[project.scripts]
+aider-local = "aider_local.cli:main"
+aider-test = "aider_local.cli:test_main"
+
+[tool.setuptools.packages.find]
+include = ["aider_local*"]
+
+[tool.setuptools.package-data]
+aider_local = ["inside.sh", "policy.md"]
