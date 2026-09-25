@@ -1,7 +1,7 @@
 # Hello project
 
 This standard-library-only Python example accompanies the
-[local editing walkthrough](../../agent.md#4-edit-locally-then-test-in-a-sandbox).
+[local editing walkthrough](../../runbook.md#4-edit-locally-then-test-in-a-sandbox).
 Copy this directory to a temporary workspace before asking aider to edit it.
 
 From the copied project, with the adapter installed and test image prepared:
