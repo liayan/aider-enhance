@@ -4,3 +4,7 @@ src/firecracker/assets/*
 !src/firecracker/assets/.gitkeep
 __pycache__/
 *.key
+
+.venv/
+build/
+*.egg-info/
