@@ -24,7 +24,9 @@ For everyday terminal use, the installable `aider-local` adapter keeps file
 edits local and lets aider choose a rootless container or Firecracker microVM
 for each proposed test command. Tests run on disposable project copies, and
 failures return to aider for repair. `auto` is the default; you can also pin
-the backend. See [installation and task-based selection](runbook.md#local-editing-with-task-based-test-isolation).
+the backend. An explicit `--test-backend process-sandbox` option runs tests
+with bubblewrap, optional Landlock, and systemd/cgroup limits using host system
+tools. See [installation and task-based selection](runbook.md#local-editing-with-task-based-test-isolation).
 
 On Linux, with [uv](https://docs.astral.sh/uv/getting-started/installation/)
 and rootless Podman installed, start from this repository root:
@@ -43,7 +45,7 @@ container. The package installs `aider-local` and `aider-test`, pins aider
 Then follow [model setup and the edit-and-test walkthrough](runbook.md#3-connect-a-model).
 The guide also covers [pipx and venv installation](runbook.md#1-install-the-terminal-commands),
 [microVM setup](runbook.md#2-prepare-a-test-backend), and
-[troubleshooting](runbook.md#troubleshooting). Both backends need their test
+[troubleshooting](runbook.md#troubleshooting). Container and microVM backends need their test
 dependencies installed before execution; installing the Python package alone
 does not provision a sandbox.
 
@@ -272,3 +274,21 @@ approved-artifact       succeeded ok     succeeded ok        succeeded ok
 Not done yet: kernel and rootfs digests aren't pinned in `versions.env`.
 
 [demo.md](demo.md) has the demo run-through.
+
+## Reproducible refactoring benchmarks
+
+The [CLI benchmark](benchmarks/cli_refactor/README.md) covers a fixed five-command
+refactor. The [HTTP-client benchmark](benchmarks/http_client_refactor/README.md)
+adds offline retry, timeout, logging and strict file-scope checks. Both use
+repeated process-sandbox, Podman and Firecracker comparisons. Offline replay uses a reference refactor
+without model calls. Optional Aider generation records actual per-request token
+usage separately from sandbox execution timings.
+
+```bash
+python benchmarks/cli_refactor/benchmark.py run \
+  --kernel src/firecracker/assets/vmlinux \
+  --rootfs src/firecracker/assets/rootfs.ext4 \
+  --output results/cli-refactor-reference
+
+# Add --workload http-client-refactor to run the HTTP workload.
+```

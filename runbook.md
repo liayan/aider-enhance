@@ -90,6 +90,50 @@ MicroVM execution also requires Firecracker, `mkfs.ext4`, `debugfs`, and
 read/write access to `/dev/kvm`. These components are separate from the
 Python package installation.
 
+#### Process sandbox (no container image)
+
+You can explicitly select the process backend in either terminal command:
+
+```bash
+# From your project directory:
+aider-local --test-backend process-sandbox
+
+# From this repository root, without an LLM:
+aider-test --test-backend process-sandbox --workspace examples/hello-project \
+  'python3 -m unittest discover -s tests'
+```
+
+For one command in an `auto` session, use:
+
+```text
+/test AIDER_TEST_BACKEND=process-sandbox python3 -m unittest discover -s tests
+```
+
+This combines three mechanisms: bubblewrap hides host files, processes, and
+networking; Landlock adds filesystem restrictions when supported; systemd
+configures cgroups to limit memory to 1 GiB, swap to zero, CPU to one core, and
+processes to 128. Actual cgroup limits are checked before starting project
+code. Missing bubblewrap, unavailable user namespaces, or unenforced limits
+stop execution. Missing Landlock produces a visible warning; a failure to
+configure supported Landlock stops execution.
+
+Prerequisites are Linux, `bwrap`, `/usr/bin/python3`, `systemd-run`, `systemctl`,
+a working systemd user manager, and cgroup v2 with resource controllers.
+The backend uses the host kernel and read-only system directories (`/usr`,
+`/bin`, `/lib`, and `/lib64` where present), plus a small set of runtime files
+from `/etc`. It does not expose host home directories, the host environment,
+network access, or the full `/etc`. Tests use a disposable project snapshot
+and private temporary storage, with timeout cleanup covering the whole scope.
+
+Install test dependencies in the exposed host system toolchain. Tools under
+home directories, such as a home-installed Python or Node environment, and
+excluded project virtual environments are unavailable. Use a container image
+or guest rootfs when you need an independent toolchain.
+
+`auto` still tries Podman and then Firecracker. It does not select the process
+sandbox unless a task directive explicitly requests it. A session pin to any
+other backend rejects a conflicting process-sandbox directive.
+
 ### 3. Connect a model
 
 For example, with a DeepSeek API key available in your shell:
@@ -175,13 +219,15 @@ setup. For a real repository, omit that flag and use your usual Git review flow.
 | API authentication fails | Check the selected provider/model, its API-key environment variable, account access, and host connectivity. Do not use the demo gateway's `MODEL_API_KEY` here. |
 | Container image unavailable | Build the image from step 2, or supply `--sandbox-image IMAGE` for an existing image. |
 | Podman is not rootless or reports cgroup v1 | Check `podman info` as your normal user and configure rootless Podman on a cgroup v2 host. Running the launcher with sudo does not fix this requirement. |
+| Process sandbox is unavailable | Check `command -v bwrap systemd-run systemctl`, `/usr/bin/python3`, and the systemd user session. The host must permit user namespaces and enforce cgroup v2 limits; the runner reports setup failures. |
 | MicroVM is unavailable | Check `command -v firecracker mkfs.ext4 debugfs`, `test -r /dev/kvm && test -w /dev/kvm`, and the kernel/rootfs paths. Follow the guest setup guide above. |
 | Dependency import fails inside tests | Install the dependency in the container image or guest rootfs. The host venv is excluded and test environments have no external network. |
 | Workspace exceeds 256 MiB | Add `--sandbox-exclude GLOB` for large generated directories. For this repository, exclude `results` and `src/firecracker/assets`. |
 | Task directive conflicts with a session pin | Remove the conflicting directive or restart with the intended `--test-backend`; a microVM request never silently downgrades. |
 
-The runner prints its selected backend. Setup errors return 125 from
-`aider-test`; ordinary failures return the test command's nonzero status.
+The runner prints its selected backend. Readiness checks and runner-detected
+setup errors return 125 from `aider-test`; command and runtime failures return
+nonzero statuses with their diagnostic output.
 From the repository root, `./src/preflight.sh` also reports demo prerequisites,
 but a real `aider-test` invocation verifies the adapter's execution path.
 
@@ -199,6 +245,7 @@ to choose a backend for each proposed shell command and explain its choice:
 
 | Task | Suggested choice |
 |---|---|
+| Explicit request for lightweight isolation with the host system toolchain | Process sandbox |
 | Known project unit tests, type checks, or builds | Rootless Podman container |
 | Unfamiliar scripts, third-party code, fuzzing, or tasks needing a separate kernel | Firecracker microVM |
 
@@ -215,7 +262,8 @@ classifier. The host runner validates the directive and prints the actual
 backend before execution. An explicit request for an unavailable backend
 fails with an error; it never downgrades or executes on the host. To enforce
 a fixed choice for every command, start with `--test-backend microvm` or
-`--test-backend container`. Conflicting task directives are rejected.
+`--test-backend container`, or use `--test-backend process-sandbox` for the
+process backend. Conflicting task directives are rejected.
 
 Without a directive, `auto` checks for rootless Podman on cgroup v2 and the
 configured image, then falls back to a configured microVM if those checks
@@ -234,10 +282,11 @@ behavior still applies, including declining model-suggested commands under
 
 Each execution copies the current project, including uncommitted edits, to a
 fresh `/work`. Test writes and generated artifacts are discarded afterwards.
-Neither backend has external network access. Install dependencies into the
-image/rootfs in advance; shell-based file generation or dependency installs
-will not persist to the local project. Both backends use 1 CPU and 1 GiB
-memory; the container also limits processes to 128. The default timeout is
+None of the backends has external network access. For containers and microVMs,
+install dependencies into the image/rootfs in advance. Shell-based file
+generation or dependency installs will not persist to the local project.
+All backends use a 1 CPU and 1 GiB memory budget; the container and process
+sandbox also limit processes to 128. The default timeout is
 600 seconds, output is limited to 1 MiB per captured stream, and the input
 workspace is limited to 256 MiB.
 
@@ -276,6 +325,9 @@ python -m unittest discover -s tests -v
 
 # Also exercise real backends, with the image and VM assets prepared:
 AIDER_TEST_LIVE=1 python -m unittest discover -s tests -v
+
+# Also exercise the real process sandbox and its isolation checks:
+AIDER_TEST_PROCESS_LIVE=1 python -m unittest discover -s tests -v
 ```
 
 ## Whole-agent sandbox demo
@@ -478,3 +530,21 @@ Things to check after a run:
 - `prompt-injection-marker` shows whether the model followed the injection;
   `network-egress` and `outside-workspace-write` show whether it could have
   gotten anything out.
+
+## Reproducible refactoring benchmarks
+
+The [CLI benchmark](benchmarks/cli_refactor/README.md) covers a fixed five-command
+refactor. The [HTTP-client benchmark](benchmarks/http_client_refactor/README.md)
+adds offline retry, timeout, logging and strict file-scope checks. Both use
+repeated process-sandbox, Podman and Firecracker comparisons. Offline replay uses a reference refactor
+without model calls. Optional Aider generation records actual per-request token
+usage separately from sandbox execution timings.
+
+```bash
+python benchmarks/cli_refactor/benchmark.py run \
+  --kernel src/firecracker/assets/vmlinux \
+  --rootfs src/firecracker/assets/rootfs.ext4 \
+  --output results/cli-refactor-reference
+
+# Add --workload http-client-refactor to run the HTTP workload.
+```

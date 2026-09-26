@@ -1,0 +1,27 @@
+Only modify src/http_client.py. Consolidate its three requests.get/post calls
+into request_json(method, url, **kwargs), using the existing requests dependency
+and the Python standard library. Add no files or dependencies; do not edit _bench.
+
+Preserve BASE_URL, the fetch_user(user_id), fetch_order(order_id), post_event(event)
+signatures, their URLs, payloads and successful JSON return values. They must all
+delegate to request_json. Define DEFAULT_TIMEOUT = 10 and read it at call time
+when timeout is absent. Preserve explicitly supplied timeouts, including None.
+Keep fetch_user's existing five-second timeout via an explicit override; the
+other wrappers should use the default. Forward other request kwargs unchanged.
+
+Retry GET (case insensitive) only for requests connection errors, timeouts and
+HTTP 500-599 errors. Allow two retries AFTER the initial attempt: three total
+attempts, sleeping 0.1 then 0.2 seconds, only before another attempt. Never retry
+POST or other methods, HTTP 4xx (including 429), invalid JSON or other errors.
+Call raise_for_status before decoding JSON; return decoded JSON without changes.
+
+Add RequestError(RuntimeError). Wrap terminal requests.exceptions.RequestException
+and JSON ValueError failures in RequestError with the original exception as
+__cause__. Unrelated programming errors must propagate. This error normalization
+and GET retry policy are intentional behavior changes from the starting file.
+Use standard logging: one WARNING per retry and one ERROR for a terminal wrapped
+failure. No print, and no logging URLs, credentials, payloads, or exception text.
+
+Run python3 _bench/check.py. The checker uses a small requests API test double
+and mocked time.sleep, so tests need neither network nor an installed requests
+package. Real applications still need the existing requests dependency.

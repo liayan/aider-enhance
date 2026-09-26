@@ -1,0 +1,9 @@
+Refactor this Python CLI without changing its observable behavior.
+Move each of the five command implementations (greet, add, count, copy,
+digest) from mycli/main.py into its own mycli/commands/<name>.py module.
+Export a callable named after each command from mycli/commands/__init__.py.
+Keep mycli/main.py responsible for argument parsing, dispatch and shared error
+handling. Preserve the mycli.main public callable and python -m mycli entrypoint.
+Preserve all options, help text, stdout, stderr, exit codes and file effects.
+Use only the Python standard library. Do not change the acceptance checker.
+Run: python3 _bench/check.py
