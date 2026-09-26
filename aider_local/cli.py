@@ -13,7 +13,7 @@ from .runner import Runner, Settings
 
 def parser(description):
     result = argparse.ArgumentParser(description=description, allow_abbrev=False)
-    result.add_argument('--test-backend', choices=['auto', 'container', 'microvm'], default='auto')
+    result.add_argument('--test-backend', choices=['auto', 'container', 'microvm', 'process-sandbox'], default='auto')
     result.add_argument('--sandbox-image', default=Settings.image)
     result.add_argument('--sandbox-kernel', default=os.environ.get('FC_KERNEL', ''))
     result.add_argument('--sandbox-rootfs', default=os.environ.get('FC_ROOTFS', ''))

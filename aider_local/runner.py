@@ -138,9 +138,9 @@ def task_request(command):
     stripped = command.lstrip()
     if not stripped.startswith('AIDER_TEST_BACKEND='):
         return None, command
-    match = re.fullmatch(r'AIDER_TEST_BACKEND=(container|microvm)\s+(.+)', stripped, re.DOTALL)
+    match = re.fullmatch(r'AIDER_TEST_BACKEND=(container|microvm|process-sandbox)\s+(.+)', stripped, re.DOTALL)
     if not match or not match[2].strip():
-        raise RunnerError('Use AIDER_TEST_BACKEND=container or AIDER_TEST_BACKEND=microvm before a command')
+        raise RunnerError('Use AIDER_TEST_BACKEND=container, microvm, or process-sandbox before a command')
     return match[1], match[2]
 
 
@@ -184,6 +184,8 @@ class Runner:
                     self.container_ready()
                 elif backend == 'microvm':
                     self.microvm_ready()
+                elif backend == 'process-sandbox':
+                    self.process_sandbox_ready()
                 else:
                     raise RunnerError(f'Unknown backend: {backend}')
                 return backend
@@ -207,9 +209,69 @@ class Runner:
                 snapshot(cwd, workspace, self.settings.exclude)
                 if backend == 'container':
                     return self.container(workspace, command)
+                if backend == 'process-sandbox':
+                    return self.process_sandbox(workspace, command)
                 return self.microvm(stage, workspace, command)
         except (RunnerError, OSError, subprocess.SubprocessError) as exc:
             return 125, f'Sandbox error: {exc}\n'
+
+    def process_sandbox_ready(self):
+        for name in ('bwrap', 'systemd-run', 'systemctl'):
+            if not shutil.which(name):
+                raise RunnerError(f'Process sandbox requires {name}')
+        if not Path('/usr/bin/python3').is_file():
+            raise RunnerError('Process sandbox requires /usr/bin/python3')
+        run_process(self.bwrap_base() + ['--', '/usr/bin/true'], check=True)
+
+    @staticmethod
+    def bwrap_base():
+        argv = [
+            'bwrap', '--die-with-parent', '--new-session',
+            '--unshare-user', '--unshare-pid', '--unshare-uts',
+            '--unshare-ipc', '--unshare-cgroup', '--unshare-net',
+            '--uid', '1000', '--gid', '1000', '--cap-drop', 'ALL',
+            '--clearenv', '--setenv', 'HOME', '/tmp/home',
+            '--setenv', 'PATH', '/usr/local/bin:/usr/bin:/bin',
+            '--setenv', 'LANG', 'C.UTF-8',
+            '--setenv', 'PYTHONDONTWRITEBYTECODE', '1',
+            '--proc', '/proc', '--dev', '/dev', '--tmpfs', '/tmp',
+            '--dir', '/tmp/home', '--dir', '/etc',
+        ]
+        for directory in ('/usr', '/bin', '/lib', '/lib64'):
+            if Path(directory).exists():
+                argv += ['--ro-bind', directory, directory]
+        # Only runtime configuration; do not expose the host's entire /etc.
+        for name in ('passwd', 'group', 'nsswitch.conf', 'ld.so.cache', 'alternatives'):
+            path = '/etc/' + name
+            if Path(path).exists():
+                argv += ['--ro-bind', path, path]
+        return argv
+
+    def process_sandbox(self, workspace, command):
+        helper_dir = Path(__file__).resolve().parent
+        unit = 'aider-test-' + uuid.uuid4().hex + '.scope'
+        argv = [
+            'systemd-run', '--user', '--scope', '--quiet', '--unit', unit,
+            '-p', 'MemoryMax=1G', '-p', 'MemorySwapMax=0',
+            '-p', 'TasksMax=128', '-p', 'CPUQuota=100%',
+            '--', '/usr/bin/python3', '-I', str(helper_dir / 'cgroup_guard.py'),
+        ]
+        argv += self.bwrap_base() + [
+            '--ro-bind', str(helper_dir / 'landlock_guard.py'), '/sandbox/landlock_guard.py',
+            '--bind', str(workspace), '/work', '--chdir', '/work',
+            '--setenv', 'LIMIT_CPU_SEC', str(self.settings.timeout),
+            '--', '/usr/bin/python3', '-I', '/sandbox/landlock_guard.py',
+            '--enforce', '--', '/bin/sh', '-c', command,
+        ]
+        try:
+            result = run_process(argv, timeout=self.settings.timeout)
+            return result.returncode, result.stdout
+        finally:
+            # Also stop descendants that detached from the launcher process group.
+            cleanup = run_process(['systemctl', '--user', 'stop', unit])
+            # systemd unloads a successfully completed scope automatically (code 5).
+            if cleanup.returncode not in (0, 5):
+                raise RunnerError(f'Could not stop process sandbox {unit}: {cleanup.stdout}')
 
     def container(self, workspace, command):
         name = 'aider-test-' + uuid.uuid4().hex
