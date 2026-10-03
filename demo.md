@@ -62,6 +62,10 @@ bubblewrap hides home, other repos and the network; Landlock limits the
 filesystem; a systemd user scope holds the cgroup limits. Every probe is
 blocked and the task still passes, in under a second.
 
+Still exposed: the host kernel, with no seccomp filter (Landlock only limits
+the filesystem); host `/usr`, `/bin`, `/lib` and `/etc`, read-only; the
+workspace, which is the host directory itself, bind-mounted read-write.
+
 Point: the cheapest boundary removes most of the risk. Most people should
 just use this.
 
@@ -75,6 +79,10 @@ Nobody reviews commands, and model-written tests run automatically. The
 container adds cgroup limits, no capabilities, a read-only root and a fixed
 image. Show `image_digest`, `caps=drop-all` and `network_mode=none` in
 `metadata.json`.
+
+Still exposed: the host kernel, through Podman's default seccomp profile, and
+the workspace, bind-mounted read-write as in the process sandbox. Host files
+are no longer visible; the image's are.
 
 Then the refusals:
 
@@ -104,6 +112,14 @@ needs KVM, a kernel, root to build the rootfs, and a rootfs per toolchain
 
 Without KVM it prints `not-executed` with a reason. That's a skip, not a
 pass.
+
+Still exposed: Firecracker's device model (virtio block, vsock, serial) and
+the host kernel underneath it. The workspace goes in as an ext4 image, and
+only allow-listed files come back out.
+
+For all three: in agent mode the model gateway is the one path out. Whatever
+the agent writes into the project is what the boundary is there to allow;
+review it before running it outside the sandbox.
 
 Supporting evidence: in Trail of Bits' August 2026 test, a cyber-capable
 agent escaped QEMU/KVM three times but did not escape Firecracker in the
