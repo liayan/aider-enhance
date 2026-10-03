@@ -8,3 +8,7 @@ __pycache__/
 .venv/
 build/
 *.egg-info/
+
+# Local notes; only the Kubernetes manifests are published.
+kubecon/*
+!kubecon/k8s/

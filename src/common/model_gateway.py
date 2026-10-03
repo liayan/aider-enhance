@@ -23,6 +23,14 @@ LOG = os.environ.get("GATEWAY_LOG", "/dev/stderr")
 TRACE = os.environ.get("GATEWAY_TRACE", "")
 SOCK = os.environ.get("GATEWAY_SOCK", "")  # empty: listen on TCP PORT
 PORT = int(os.environ.get("GATEWAY_PORT", "8080"))
+# TCP bind address. Loopback by default; set 0.0.0.0 when the gateway runs as
+# its own pod (Kubernetes) and is reached through a Service.
+BIND = os.environ.get("GATEWAY_BIND", "127.0.0.1")
+# The gateway is the sandbox's one sanctioned network path, so it is part of
+# the boundary: forward only the model endpoints the agent needs, nothing else.
+# Override with a comma-separated list of "METHOD /path" entries.
+ALLOW = {tuple(e.strip().split(" ", 1)) for e in os.environ.get(
+    "GATEWAY_ALLOW", "POST /v1/chat/completions,GET /v1/models").split(",") if e.strip()}
 _turn = [0]
 
 
@@ -69,6 +77,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
     def _forward(self, method):
         length = int(self.headers.get("Content-Length", 0))
         body = self.rfile.read(length) if length else None
+        path = self.path.split("?")[0]
+        if (method, path) not in ALLOW:
+            logline(event="denied", method=method, path=path, bytes_in=length)
+            self.send_error(403, "path not allowed by gateway")
+            return
         url = UPSTREAM + self.path
         req = urllib.request.Request(url, data=body, method=method)
         for h in ("Content-Type", "Accept"):
@@ -133,7 +146,7 @@ def main():
         srv.socket.listen(16)
         logline(event="listen", transport="unix", path=SOCK, upstream=UPSTREAM)
     else:
-        srv = socketserver.ThreadingTCPServer(("127.0.0.1", PORT), Handler)
+        srv = socketserver.ThreadingTCPServer((BIND, PORT), Handler)
         logline(event="listen", transport="tcp", port=PORT, upstream=UPSTREAM)
     try:
         srv.serve_forever()

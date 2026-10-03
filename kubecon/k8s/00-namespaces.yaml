@@ -1,0 +1,27 @@
+# agent-lab: where the sandboxed agents run. Pod Security "restricted" is
+# enforced, so a manifest that asks for privilege is rejected at admission.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: agent-lab
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/enforce-version: latest
+---
+# agent-gateway: holds the model API key (as a Secret) and the gateway. The
+# key never exists in agent-lab.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: agent-gateway
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+---
+# agent-evidence: the egress sink. Any request it logs from agent-lab means a
+# NetworkPolicy did not hold. The evaluator reads its logs from outside.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: agent-evidence
+  labels:
+    pod-security.kubernetes.io/enforce: restricted

@@ -23,7 +23,11 @@ if [ "$RUN_MODE" = "agent" ]; then
   # 127.0.0.1:$GATEWAY_PORT -> /run/model.sock, or the host vsock port in
   # the Firecracker guest (MODEL_VSOCK=<cid>:<port>).
   GATEWAY_PORT="${GATEWAY_PORT:-8080}"
-  if [ -n "${MODEL_VSOCK:-}" ]; then
+  if [ -n "${MODEL_GATEWAY_URL:-}" ]; then
+    # Kubernetes: the gateway is a Service in another namespace; the pod's
+    # NetworkPolicy allows egress to it and nothing else. No forwarder needed.
+    :
+  elif [ -n "${MODEL_VSOCK:-}" ]; then
     python3 "$SRC/common/portfwd.py" "$GATEWAY_PORT" "vsock:$MODEL_VSOCK" &
     FWD_PID=$!
     sleep 0.3
@@ -35,7 +39,7 @@ if [ "$RUN_MODE" = "agent" ]; then
     echo "[inside] WARNING: /run/model.sock not present; agent has no model path"
   fi
 
-  export OPENAI_API_BASE="http://127.0.0.1:${GATEWAY_PORT}/v1"
+  export OPENAI_API_BASE="${MODEL_GATEWAY_URL:-http://127.0.0.1:${GATEWAY_PORT}}/v1"
   export OPENAI_API_KEY="sandbox-dummy"   # gateway adds the real key
   export AIDER_LLM_HISTORY_FILE="$WORK/.aider.llm.history"
   export AIDER_CHAT_HISTORY_FILE="$WORK/.aider.chat.history.md"

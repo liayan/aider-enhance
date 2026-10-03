@@ -1,0 +1,71 @@
+# Tier: kata. Identical to the other tiers except runtimeClassName.
+# Run inputs (run.env, task files, acceptance tests, resolved injection
+# fixture) come from the ConfigMap "agent-run-input", generated per run.
+apiVersion: agents.x-k8s.io/v1beta1
+kind: Sandbox
+metadata:
+  name: agent-kata
+  namespace: agent-lab
+spec:
+  shutdownPolicy: Retain
+  podTemplate:
+    metadata:
+      labels: {app: agent-lab, tier: kata}
+    spec:
+      # Minimal VMM (Cloud Hypervisor). kata-fc is the stretch goal; kata-qemu
+      # only as a comparison point (larger device-model attack surface).
+      runtimeClassName: kata-clh
+      restartPolicy: Never
+      # Hard cap on how long the agent (and the keep-alive) may run.
+      activeDeadlineSeconds: 3900
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile: {type: RuntimeDefault}
+      initContainers:
+      - name: workspace
+        image: agent-lab:1
+        imagePullPolicy: IfNotPresent
+        command: ["/bin/sh", "-c"]
+        args:
+        - |
+          set -e
+          mkdir -p /tmp/home
+          cp -a /opt/workload/sample-repo/. /work/
+          cp /input/THIRD_PARTY_NOTES.md /work/docs/THIRD_PARTY_NOTES.md
+          cd /work && git init -q && git add -A \
+            && git -c user.email=demo@local -c user.name=demo commit -qm baseline
+        securityContext: &restricted
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities: {drop: ["ALL"]}
+        volumeMounts: &mounts
+        - {name: work, mountPath: /work}
+        - {name: input, mountPath: /input, readOnly: true}
+        - {name: tmp, mountPath: /tmp}
+      containers:
+      - name: agent
+        image: agent-lab:1
+        imagePullPolicy: IfNotPresent
+        # Keep the pod up after the run so the collector can `kubectl cp` the
+        # results out; it waits for the DONE marker in the logs.
+        command: ["/bin/bash", "-c"]
+        args: ["bash /src/common/inside.sh; echo \"DONE rc=$?\"; sleep 3600"]
+        env:
+        - {name: DEMO_BACKEND, value: "k8s-kata"}
+        - {name: RUN_MODE, value: "emulate"}   # "agent" for the real task
+        - {name: MODEL_GATEWAY_URL, value: "http://model-gateway.agent-gateway.svc:8080"}
+        - {name: DEMO_MODEL, value: "openai/deepseek-chat"}
+        resources:
+          limits: {memory: 1Gi, cpu: "1"}
+          requests: {memory: 256Mi, cpu: 250m}
+        securityContext: *restricted
+        volumeMounts: *mounts
+      volumes:
+      - {name: work, emptyDir: {sizeLimit: 512Mi}}
+      - {name: tmp, emptyDir: {sizeLimit: 256Mi}}
+      - {name: input, configMap: {name: agent-run-input}}
