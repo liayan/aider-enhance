@@ -169,11 +169,27 @@ def probe_outside_workspace_write():
 def probe_unapproved_command():
     """Run privileged commands that change something.
 
-    rc 0 means the change happened, not just that the binary exists.
+    Each attempt is classified so a missing tool isn't mistaken for the
+    boundary refusing the operation:
+      changed      ran and rc 0: the privileged change actually happened
+      refused      ran but the kernel or policy rejected it (what we want)
+      unavailable  the tool isn't installed, so it says nothing about the
+                   boundary
+      error        anything else
+    The verdict is 'succeeded' if any change happened, 'blocked' if at least
+    one op was actively refused and none changed, and 'not-applicable' if
+    nothing could even be attempted.
     """
+    import tempfile
     detail = {}
+    # Use our own fresh mountpoint so a mount failure is about permission, not
+    # a missing target directory.
+    try:
+        mountpoint = tempfile.mkdtemp(prefix="demo-mnt-")
+    except OSError:
+        mountpoint = "/mnt"
     attempts = {
-        "mount-tmpfs":  ["mount", "-t", "tmpfs", "demo", "/mnt"],
+        "mount-tmpfs":  ["mount", "-t", "tmpfs", "demo", mountpoint],
         "ip-link-add":  ["ip", "link", "add", "demo0", "type", "dummy"],
         "sudo-true":    ["sudo", "-n", "true"],
         "chmod-etc":    ["chmod", "0777", "/etc/hostname"],
@@ -182,14 +198,24 @@ def probe_unapproved_command():
         try:
             p = subprocess.run(argv, capture_output=True, timeout=5)
             detail[name] = {"ran": True, "rc": p.returncode,
+                            "class": "changed" if p.returncode == 0 else "refused",
                             "stderr": (p.stderr.decode(errors="replace").strip()[:80])}
         except FileNotFoundError:
-            detail[name] = {"ran": False, "error": "not-found"}
+            detail[name] = {"ran": False, "class": "unavailable", "error": "not-found"}
         except Exception as e:
-            detail[name] = {"ran": False, "error": type(e).__name__}
-    succeeded = [n for n, r in detail.items() if r.get("ran") and r.get("rc") == 0]
-    return {"observed": "succeeded" if succeeded else "blocked", "detail": detail,
-            "evidence": f"privileged ops that worked: {succeeded or 'none'}"}
+            detail[name] = {"ran": False, "class": "error", "error": type(e).__name__}
+    changed = [n for n, r in detail.items() if r.get("class") == "changed"]
+    refused = [n for n, r in detail.items() if r.get("class") == "refused"]
+    unavailable = [n for n, r in detail.items() if r.get("class") == "unavailable"]
+    if changed:
+        observed = "succeeded"
+    elif refused:
+        observed = "blocked"
+    else:
+        observed = "not-applicable"
+    return {"observed": observed, "detail": detail,
+            "evidence": f"changed: {changed or 'none'}; refused: {refused or 'none'}; "
+                        f"unavailable: {unavailable or 'none'}"}
 
 
 @probe
@@ -222,6 +248,56 @@ def probe_resource_limit():
     return {"observed": "blocked" if capped else "succeeded", "detail": detail,
             "evidence": f"RLIMIT_AS={'inf' if soft_as==resource.RLIM_INFINITY else soft_as}; "
                         f"{grab_mib}MiB alloc {detail[f'alloc_{grab_mib}mib']}"}
+
+
+def _read_first(*paths):
+    for p in paths:
+        try:
+            with open(p) as fh:
+                return p, fh.read().strip()
+        except OSError:
+            continue
+    return None, None
+
+
+@probe
+def probe_pids_limit():
+    """Report the process/thread cap the boundary enforces.
+
+    Info only: which mechanism caps tasks depends on the backend (an
+    RLIMIT_NPROC for the process sandbox, a cgroup pids.max for the container,
+    the VM's own memory for Firecracker), so this reports what's visible from
+    inside rather than asserting one universal answer.
+    """
+    soft, _ = resource.getrlimit(resource.RLIMIT_NPROC)
+    _, cg = _read_first("/sys/fs/cgroup/pids.max")
+    want = CFG.get("PIDS_LIMIT")
+    enforced = (soft != resource.RLIM_INFINITY) or (cg not in (None, "max"))
+    return {"observed": "reported",
+            "detail": {"rlimit_nproc_soft": soft, "cgroup_pids_max": cg,
+                       "configured": want, "enforced_visible_here": enforced},
+            "evidence": f"rlimit_nproc={'inf' if soft == resource.RLIM_INFINITY else soft}, "
+                        f"cgroup pids.max={cg or 'n/a'}; configured={want}; "
+                        f"cap visible inside: {enforced}"}
+
+
+@probe
+def probe_cpu_limit():
+    """Report the CPU quota the boundary enforces.
+
+    Info only. The container exposes a cgroup cpu.max; the process sandbox
+    keeps the quota in a systemd scope that isn't visible inside bwrap; a
+    microVM is capped by its vcpu count. Report whichever is visible.
+    """
+    _, cpu_max = _read_first("/sys/fs/cgroup/cpu.max")
+    online = os.cpu_count()
+    want = CFG.get("CPUS_LIMIT")
+    visible = cpu_max not in (None, "max")
+    return {"observed": "reported",
+            "detail": {"cgroup_cpu_max": cpu_max, "online_cpus": online,
+                       "configured": want, "quota_visible_here": visible},
+            "evidence": f"cgroup cpu.max={cpu_max or 'n/a'}; online CPUs={online}; "
+                        f"configured={want}; quota visible inside: {visible}"}
 
 
 @probe
