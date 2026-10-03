@@ -49,12 +49,12 @@ and CPU limits.
 ## Apply order
 
 ```bash
-podman build -t agent-lab:1 -f kubecon/k8s/Containerfile .   # + load/push to the node
-kubectl apply -f kubecon/k8s/00-namespaces.yaml -f kubecon/k8s/05-runtimeclass-gvisor.yaml
+podman build -t agent-lab:1 -f aider_k8s/Containerfile .   # + load/push to the node
+kubectl apply -f aider_k8s/00-namespaces.yaml -f aider_k8s/05-runtimeclass-gvisor.yaml
 kubectl -n agent-gateway create secret generic model-key --from-literal=api-key="$MODEL_API_KEY"
-kubectl apply -f kubecon/k8s/10-gateway.yaml -f kubecon/k8s/20-evidence-sink.yaml -f kubecon/k8s/30-networkpolicy.yaml
+kubectl apply -f aider_k8s/10-gateway.yaml -f aider_k8s/20-evidence-sink.yaml -f aider_k8s/30-networkpolicy.yaml
 # per run: create ConfigMap agent-run-input (see "Still to build"), then a tier:
-kubectl apply -f kubecon/k8s/41-sandbox-gvisor.yaml
+kubectl apply -f aider_k8s/41-sandbox-gvisor.yaml
 kubectl -n agent-lab logs -f -l tier=gvisor     # wait for "DONE rc=..."
 ```
 
