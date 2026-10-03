@@ -1,0 +1,41 @@
+# Model gateway: adds the API key to outbound model calls. Create the Secret
+# first, e.g.:
+#   kubectl -n agent-gateway create secret generic model-key \
+#     --from-literal=api-key="$MODEL_API_KEY"
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: model-gateway, namespace: agent-gateway}
+spec:
+  replicas: 1
+  selector: {matchLabels: {app: model-gateway}}
+  template:
+    metadata: {labels: {app: model-gateway}}
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+      - name: gateway
+        image: agent-lab:1
+        imagePullPolicy: IfNotPresent
+        command: ["python3", "/src/common/model_gateway.py"]
+        env:
+        - {name: GATEWAY_BIND, value: "0.0.0.0"}
+        - {name: GATEWAY_PORT, value: "8080"}
+        - {name: MODEL_UPSTREAM, value: "https://api.deepseek.com"}
+        - name: MODEL_API_KEY
+          valueFrom: {secretKeyRef: {name: model-key, key: api-key, optional: true}}
+        ports: [{containerPort: 8080}]
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities: {drop: ["ALL"]}
+---
+apiVersion: v1
+kind: Service
+metadata: {name: model-gateway, namespace: agent-gateway}
+spec:
+  selector: {app: model-gateway}
+  ports: [{port: 8080, targetPort: 8080}]

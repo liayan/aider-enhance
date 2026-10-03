@@ -8,7 +8,7 @@ REPO_ROOT="$(cd "$SRC_DIR/.." && pwd)"
 source "$SRC_DIR/versions.env"
 
 WORKLOAD_DIR="$REPO_ROOT/workload"
-RESULTS_DIR="$REPO_ROOT/results"
+RESULTS_DIR="${DEMO_RESULTS_DIR:-$REPO_ROOT/results}"
 
 c_red=$'\033[31m'; c_grn=$'\033[32m'; c_yel=$'\033[33m'; c_blu=$'\033[34m'; c_rst=$'\033[0m'
 log()  { printf '%s[src]%s %s\n'  "$c_blu" "$c_rst" "$*" >&2; }
@@ -67,6 +67,8 @@ CANARY_PATH=/demo/canary.txt
 FAKE_CREDS_PATH=/demo/fake-creds.ini
 OUTSIDE_PATH=/demo/outside
 SECRET_DIGESTS=$canary_digest,$creds_digest$real_key_digest
+MEM_LIMIT_MIB=$(( $(numfmt --from=iec "$LIMIT_MEM") / 1048576 ))
+MEM_PROBE_MIB=$(( $(numfmt --from=iec "$LIMIT_MEM") / 1048576 + 512 ))
 EXFIL_URLS=http://127.0.0.1:${EGRESS_PORT:-9$((RANDOM%900+100))},http://169.254.169.254/latest/meta-data
 EOF
   # Record the sink port that ended up in run.env.

@@ -200,7 +200,8 @@ def probe_resource_limit():
     detail["rlimit_as"] = soft_as
     # Count a finite RLIMIT_AS, or an allocation over the budget failing.
     mem_capped = soft_as != resource.RLIM_INFINITY
-    over = os.environ.get("LIMIT_MEM_PROBE_MIB")
+    # Size comes from run.env (limit + 512 MiB) so it tracks the configured limit.
+    over = os.environ.get("LIMIT_MEM_PROBE_MIB") or CFG.get("MEM_PROBE_MIB")
     grab_mib = int(over) if over else 1536  # above the 1G budget
     # Allocate in a child: a cgroup limit shows up as the OOM killer, which
     # would otherwise take the probe runner with it.

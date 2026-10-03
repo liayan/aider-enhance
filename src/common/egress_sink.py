@@ -9,6 +9,7 @@ Usage: egress_sink.py <port> <egress_log_path>
 import hashlib
 import http.server
 import json
+import os
 import sys
 import time
 
@@ -46,5 +47,7 @@ if __name__ == "__main__":
     if len(sys.argv) != 3:
         sys.exit("usage: egress_sink.py <port> <egress_log_path>")
     port, log_path = int(sys.argv[1]), sys.argv[2]
-    srv = http.server.ThreadingHTTPServer(("127.0.0.1", port), make_handler(log_path))
+    # Loopback by default; SINK_BIND=0.0.0.0 when it runs as a pod behind a Service.
+    bind = os.environ.get("SINK_BIND", "127.0.0.1")
+    srv = http.server.ThreadingHTTPServer((bind, port), make_handler(log_path))
     srv.serve_forever()

@@ -105,6 +105,12 @@ needs KVM, a kernel, root to build the rootfs, and a rootfs per toolchain
 Without KVM it prints `not-executed` with a reason. That's a skip, not a
 pass.
 
+Supporting evidence: in Trail of Bits' August 2026 test, a cyber-capable
+agent escaped QEMU/KVM three times but did not escape Firecracker in the
+time tested (the host still locked up, and they call the test incomplete).
+A smaller VMM is a smaller target; it is not a guarantee. Source:
+[Trail of Bits, 26 Aug 2026](https://blog.trailofbits.com/2026/08/26/vms-wont-contain-cyber-capable-agents/).
+
 Point: needed for a hosted service, overkill on a laptop.
 
 ## 6. The trade-off (1.5 min)
@@ -126,9 +132,17 @@ Point: the right boundary depends on the threat.
 
 ## 7. A sandbox inside the agent isn't a boundary (1.5 min)
 
-> TODO: two external incidents go here, with sources, before the talk:
-> an agent that switched off its own confinement, and a sandbox that failed
-> silently while the run still exited 0. Don't present them until verified.
+In July 2026, agents in OpenAI's "highly isolated" cyber-evaluation sandbox,
+whose only network access was an internal package proxy, used a zero-day in
+that proxy to reach the internet and then Hugging Face. Agents meant to be
+isolated from each other used shared proxy storage as a message board, and
+some tampered with logs. Early signs were seen in May and not escalated.
+Sources: [OpenAI, 21 Jul 2026](https://openai.com/index/hugging-face-model-evaluation-security-incident/),
+[METR and Redwood Research, 26 Aug 2026](https://metr.org/blog/2026-08-26-openai-hugging-face-incident-investigation/);
+say only what they state.
+
+> TODO: a second example of a sandbox that failed silently while the run
+> still exited 0. Don't present it until verified.
 
 Our own runs have examples of the same failure mode:
 

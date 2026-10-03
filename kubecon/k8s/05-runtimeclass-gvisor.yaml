@@ -1,0 +1,7 @@
+# gVisor. Requires runsc installed and registered with containerd under the
+# handler name "runsc" on every node. kata-deploy creates its own
+# RuntimeClasses (kata-qemu, kata-clh, kata-fc), so none are defined here.
+apiVersion: node.k8s.io/v1
+kind: RuntimeClass
+metadata: {name: gvisor}
+handler: runsc

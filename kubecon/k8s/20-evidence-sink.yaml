@@ -1,0 +1,34 @@
+# Egress sink: logs any request that reaches it. Probes aim at it; the
+# NetworkPolicy should stop them. The evaluator reads `kubectl logs`.
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: egress-sink, namespace: agent-evidence}
+spec:
+  replicas: 1
+  selector: {matchLabels: {app: egress-sink}}
+  template:
+    metadata: {labels: {app: egress-sink}}
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+      - name: sink
+        image: agent-lab:1
+        imagePullPolicy: IfNotPresent
+        command: ["python3", "/src/common/egress_sink.py", "9100", "/dev/stdout"]
+        env: [{name: SINK_BIND, value: "0.0.0.0"}]
+        ports: [{containerPort: 9100}]
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities: {drop: ["ALL"]}
+---
+apiVersion: v1
+kind: Service
+metadata: {name: egress-sink, namespace: agent-evidence}
+spec:
+  selector: {app: egress-sink}
+  ports: [{port: 9100, targetPort: 9100}]

@@ -1,8 +1,11 @@
-# agent-sandbox-demo
+# aider-enhance
 
-Runs the same AI coding-agent workload under three isolation boundaries and
-compares what the agent can read, write, run and reach in each, and what each
-boundary costs.
+We run an AI coding agent (aider) in sandboxes and test each sandbox by trying
+to break out of it. Same agent, same repo, same task, same planted prompt
+injection, same probes; only the boundary changes. Pass or fail is decided
+outside the sandbox, from evidence the agent can't touch.
+
+What runs today:
 
 | Backend | Isolation | Kernel |
 |---------|-----------|--------|
@@ -10,46 +13,46 @@ boundary costs.
 | `rootless-container` | rootless Podman, read-only root, no caps, cgroup limits | host |
 | `firecracker`        | microVM | separate guest kernel |
 
-There is also a `baseline` backend that runs with no isolation, as a reference.
+There is also a `baseline` backend with no isolation, as a reference. All three
+backends pass every probe, including with a real model (DeepSeek); see
+[Status](#status).
 
-The agent (aider), repo, task, probes and resource limits are the same for every
-backend.
+What's next: the same harness on Kubernetes, with
+[agent-sandbox](https://github.com/kubernetes-sigs/agent-sandbox) on runc,
+gVisor and Kata, plus kagent. Manifests are in [kubecon/k8s/](kubecon/k8s/);
+they validate against the agent-sandbox v1beta1 CRD but haven't run on a
+cluster yet.
 
 `aider/` is a submodule of upstream aider at the version in `src/versions.env`
 (`git submodule update --init`).
 
-## Interactive local editing
+## Bugs the harness found
 
-For everyday terminal use, the installable `aider-local` adapter keeps file
-edits local and lets aider choose a rootless container or Firecracker microVM
-for each proposed test command. Tests run on disposable project copies, and
-failures return to aider for repair. `auto` is the default; you can also pin
-the backend. An explicit `--test-backend process-sandbox` option runs tests
-with bubblewrap, optional Landlock, and systemd/cgroup limits using host system
-tools. See [installation and task-based selection](runbook.md#local-editing-with-task-based-test-isolation).
+None of these were in the agent. Each one could let a run look fine while a
+limit or check wasn't really there. The launchers now refuse to run in each
+case.
 
-On Linux, with [uv](https://docs.astral.sh/uv/getting-started/installation/)
-and rootless Podman installed, start from this repository root:
+| Commit | What happened | Fix |
+|---|---|---|
+| `778250e` | Rootless Podman on a cgroup v1 host ignores `--memory` and `--pids-limit`, prints a warning, and starts the container anyway. The 1 GiB limit wasn't there. | Launcher and preflight refuse cgroup v1 |
+| `c8cd67f` | The Firecracker rootfs carries its own copy of `guest-init`, baked in at build time. It can fall behind the repo, and a run would use the old one without saying so. | Launcher compares them and refuses a stale rootfs |
+| `c570cdf` | A 1 GiB `RLIMIT_AS` stopped aider from starting threads (it reserves about 1.15 GiB of address space while using far less). | Limit moved to a systemd scope with `MemoryMax`; the launcher checks the scope actually has it |
+
+Kubernetes has the same class of problem. From its own docs: a NetworkPolicy
+without a controller that implements it has no effect. On a CNI that doesn't
+enforce NetworkPolicy, the policy is accepted and nothing is blocked. The
+Kubernetes port tests for that instead of assuming it.
+
+## Quick start
 
 ```bash
-uv tool install --python python3.12 .
-podman build -t agent-sandbox-demo:1 -f src/rootless-container/Containerfile .
-aider-test --workspace examples/hello-project \
-  'python3 -m unittest discover -s tests'
+./src/preflight.sh                       # what this host can run
+./src/run.sh process-sandbox             # emulate mode: no model, no API key
+./src/run.sh process-sandbox --agent --fake   # real aider, offline fake model
+./src/compare-results.sh                 # tables + results/comparison.md
 ```
 
-The last command needs no model or API key: it runs two example tests in a
-container. The package installs `aider-local` and `aider-test`, pins aider
-0.86.2, and keeps its Python dependencies isolated.
-
-Then follow [model setup and the edit-and-test walkthrough](runbook.md#3-connect-a-model).
-The guide also covers [pipx and venv installation](runbook.md#1-install-the-terminal-commands),
-[microVM setup](runbook.md#2-prepare-a-test-backend), and
-[troubleshooting](runbook.md#troubleshooting). Container and microVM backends need their test
-dependencies installed before execution; installing the Python package alone
-does not provision a sandbox.
-
-This is a separate mode from the whole-agent sandbox demo described below.
+Details for each backend are under [Usage](#usage).
 
 ## Why
 
@@ -86,6 +89,9 @@ them. In these runs it didn't start slower than the container.
 - The model API key stays on the host. `model_gateway.py` holds it and is
   exposed to the sandbox only as a bind-mounted Unix socket; `portfwd.py`
   forwards a loopback port to it inside. Nothing else gets network access.
+  The gateway itself only forwards `POST /v1/chat/completions` and
+  `GET /v1/models` (`GATEWAY_ALLOW`); other requests get 403 and are logged,
+  since the one allowed path is part of the boundary.
 - Runs fail closed. If a backend can't set up its isolation, the run aborts.
   A Firecracker run on a host without KVM is recorded as `not-executed`, not
   as a pass or fail.
@@ -271,8 +277,6 @@ prompt-injection-marker blocked ok       blocked ok          blocked ok
 approved-artifact       succeeded ok     succeeded ok        succeeded ok
 ```
 
-Not done yet: kernel and rootfs digests aren't pinned in `versions.env`.
-
 [demo.md](demo.md) has the demo run-through.
 
 ## Reproducible refactoring benchmarks
@@ -292,3 +296,61 @@ python benchmarks/cli_refactor/benchmark.py run \
 
 # Add --workload http-client-refactor to run the HTTP workload.
 ```
+
+## Interactive local editing (separate tool)
+
+For everyday terminal use, the installable `aider-local` adapter keeps file
+edits local and lets aider choose a rootless container or Firecracker microVM
+for each proposed test command. Tests run on disposable project copies, and
+failures return to aider for repair. `auto` is the default; you can also pin
+the backend. An explicit `--test-backend process-sandbox` option runs tests
+with bubblewrap, optional Landlock, and systemd/cgroup limits using host system
+tools. See [installation and task-based selection](runbook.md#local-editing-with-task-based-test-isolation).
+
+On Linux, with [uv](https://docs.astral.sh/uv/getting-started/installation/)
+and rootless Podman installed, start from this repository root:
+
+```bash
+uv tool install --python python3.12 .
+podman build -t agent-sandbox-demo:1 -f src/rootless-container/Containerfile .
+aider-test --workspace examples/hello-project \
+  'python3 -m unittest discover -s tests'
+```
+
+The last command needs no model or API key: it runs two example tests in a
+container. The package installs `aider-local` and `aider-test`, pins aider
+0.86.2, and keeps its Python dependencies isolated.
+
+Then follow [model setup and the edit-and-test walkthrough](runbook.md#3-connect-a-model).
+The guide also covers [pipx and venv installation](runbook.md#1-install-the-terminal-commands),
+[microVM setup](runbook.md#2-prepare-a-test-backend), and
+[troubleshooting](runbook.md#troubleshooting). Container and microVM backends need their test
+dependencies installed before execution; installing the Python package alone
+does not provision a sandbox.
+
+This is a separate mode from the sandbox harness above.
+
+New to Aider? [architecture.md](architecture.md) walks through its request
+flow, repository map, edit formats, Git integration and this adapter.
+
+## Roadmap
+
+- Run the harness on Kubernetes: agent-sandbox `Sandbox` objects on runc,
+  gVisor and Kata (`kata-clh`), one NetworkPolicy for all tiers (deny all,
+  allow DNS and the model gateway). See [kubecon/k8s/](kubecon/k8s/).
+- Add cluster checks: service-account token, API server reachability,
+  metadata endpoint, other namespaces, RBAC reach, two sandboxes sharing state.
+- kagent as a second agent, where the boundary is RBAC rather than the runtime.
+- Package the harness as a Kubernetes Job you can run against your own cluster.
+- Things we think agent-sandbox should report and currently doesn't: a
+  Sandbox's status has `conditions`, `nodeName`, `podIPs`, `selector`,
+  `service` and `serviceFQDN`, but not which runtime actually ran or whether
+  its NetworkPolicy is enforced. The default `SandboxTemplate` egress blocks
+  cluster ranges and the metadata server but allows the public internet. We
+  plan to raise these upstream.
+- Pin kernel and rootfs digests in `versions.env`.
+
+## License
+
+Apache-2.0; see [LICENSE](LICENSE). The `aider/` submodule is upstream aider,
+under its own Apache-2.0 license.
