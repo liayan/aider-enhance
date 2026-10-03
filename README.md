@@ -19,7 +19,7 @@ backends pass every probe, including with a real model (DeepSeek); see
 
 What's next: the same harness on Kubernetes, with
 [agent-sandbox](https://github.com/kubernetes-sigs/agent-sandbox) on runc,
-gVisor and Kata, plus kagent. Manifests are in [kubecon/k8s/](kubecon/k8s/);
+gVisor and Kata, plus kagent. Manifests are in [aider_k8s/](aider_k8s/);
 they validate against the agent-sandbox v1beta1 CRD but haven't run on a
 cluster yet.
 
@@ -337,7 +337,7 @@ flow, repository map, edit formats, Git integration and this adapter.
 
 - Run the harness on Kubernetes: agent-sandbox `Sandbox` objects on runc,
   gVisor and Kata (`kata-clh`), one NetworkPolicy for all tiers (deny all,
-  allow DNS and the model gateway). See [kubecon/k8s/](kubecon/k8s/).
+  allow DNS and the model gateway). See [aider_k8s/](aider_k8s/).
 - Add cluster checks: service-account token, API server reachability,
   metadata endpoint, other namespaces, RBAC reach, two sandboxes sharing state.
 - kagent as a second agent, where the boundary is RBAC rather than the runtime.
