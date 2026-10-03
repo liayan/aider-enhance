@@ -9,6 +9,5 @@ __pycache__/
 build/
 *.egg-info/
 
-# Local notes; only the Kubernetes manifests are published.
-kubecon/*
-!kubecon/k8s/
+# Local notes, not published.
+cfp/
