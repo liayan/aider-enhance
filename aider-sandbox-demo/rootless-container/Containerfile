@@ -1,0 +1,16 @@
+FROM docker.io/library/debian:bookworm-slim
+
+RUN useradd --create-home --uid 1000 --shell /bin/sh demo \
+    && apt-get update \
+    && apt-get install --yes --no-install-recommends \
+       bash ca-certificates curl procps python3 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install a pinned Aider version in the real demo image. Keep this example
+# deliberately explicit; do not use an unpinned latest dependency for a talk.
+# COPY requirements.lock /tmp/requirements.lock
+# RUN python3 -m pip install --require-hashes -r /tmp/requirements.lock
+
+USER 1000:1000
+WORKDIR /work
+ENTRYPOINT ["/bin/sh"]
