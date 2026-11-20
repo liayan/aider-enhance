@@ -45,10 +45,18 @@ RUN_MODE="${RUN_MODE:-emulate}"
 # side of the model path.
 VSOCK_UDS="$RUN_DIR/hostside/fc-vsock.sock"
 MODEL_VSOCK_PORT=1024
+# A Unix socket path must fit in sun_path (108 bytes, including "_<port>"). A
+# deep results directory doesn't, and Firecracker then refuses to start, so
+# use a short private directory instead.
+if [ $(( ${#VSOCK_UDS} + ${#MODEL_VSOCK_PORT} + 2 )) -gt 107 ]; then
+  SOCK_DIR="$(mktemp -d "${XDG_RUNTIME_DIR:-/tmp}/fc.XXXXXX")"
+  trap 'rm -rf "$SOCK_DIR"' EXIT
+  VSOCK_UDS="$SOCK_DIR/vsock.sock"
+fi
 if [ "$RUN_MODE" = "agent" ]; then
   debugfs -R "stat /usr/local/bin/aider" "$ROOTFS" 2>/dev/null | grep -q "Type: regular" || \
     die "rootfs $ROOTFS has no aider; build it with: sudo env WITH_AIDER=1 $REPO_ROOT/setup/build-firecracker-guest.sh"
-  ln -sfn gateway.sock "${VSOCK_UDS}_${MODEL_VSOCK_PORT}"
+  ln -sfn "$RUN_DIR/hostside/gateway.sock" "${VSOCK_UDS}_${MODEL_VSOCK_PORT}"
 fi
 
 # guest-init is baked into the rootfs; the policy digest below is taken from

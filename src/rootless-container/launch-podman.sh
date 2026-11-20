@@ -50,6 +50,9 @@ ARGS=(
   --security-opt label=disable
   --pids-limit "${LIMIT_PIDS}"
   --memory "${LIMIT_MEM}"
+  # Equal to --memory means no swap. Podman's default allows the same again
+  # in swap, so on a host with swap the memory budget silently doubles.
+  --memory-swap "${LIMIT_MEM}"
   --cpus "${LIMIT_CPUS}"
   --tmpfs /tmp:rw,noexec,nosuid,nodev,size=256m
   --tmpfs /tmp/home:rw,nosuid,nodev,size=64m

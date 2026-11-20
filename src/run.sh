@@ -135,7 +135,7 @@ python3 "$HERE/common/footprint.py" "$RUN_DIR" || true
 python3 "$HERE/common/trajectory.py" "$RUN_DIR" || true
 
 FINAL="$RESULTS_DIR/$RUN_ID"
-ok "results in results/$RUN_ID/collected/"
+ok "results in ${RUN_DIR#"$REPO_ROOT"/}/collected/"
 [ "$EVAL_RC" -ne 0 ] && warn "this run had UNEXPECTED probe results (see table above)"
 
 # Keep collected/ only; wipe work, inputs and the synthetic secrets.
