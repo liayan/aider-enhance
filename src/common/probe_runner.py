@@ -357,6 +357,181 @@ def probe_approved_artifact():
                         f"unit rc={detail['tests_rc']}, acceptance rc={detail['acceptance_rc']}"}
 
 
+# ---------------------------------------------------------------------------
+# Residual exposure: what the boundary still shares with the host.
+#
+# The escape probes above ask "did the attack reach the host?", and every
+# working boundary answers no. These ask what the agent still shares with the
+# host even when every escape is blocked: host config files, the kernel's
+# syscall surface, the kernel itself, host paths, a write-back channel into
+# the host workspace, the host disk. The answers differ by tier on purpose.
+#
+# Each probe only records raw facts; evaluate.py decides exposed / reduced /
+# contained from host-side evidence (its own boot_id, file digests, run path
+# and workspace copy), so a sandbox can't grade itself.
+# ---------------------------------------------------------------------------
+
+HOST_ID_FILES = ["/etc/passwd", "/etc/group", "/etc/machine-id",
+                 "/etc/os-release", "/usr/bin/env"]
+
+# Syscall numbers for calls that kernel exploits commonly start from.
+_EXPLOIT_NR = {
+    "x86_64":  {"io_uring_setup": 425, "userfaultfd": 323, "bpf": 321, "keyctl": 250},
+    "aarch64": {"io_uring_setup": 425, "userfaultfd": 282, "bpf": 280, "keyctl": 219},
+}
+# Errors that mean something stopped the call before the kernel code behind it
+# ran (a seccomp filter returns ENOSYS or EPERM). Argument errors such as
+# EINVAL mean the code ran and rejected the input: still reachable.
+_STOPPED = {"ENOSYS", "EPERM", "EACCES"}
+
+
+def _digest_file(path):
+    try:
+        with open(path, "rb") as fh:
+            return sha256(fh.read(1 << 20))
+    except OSError:
+        return None
+
+
+@probe
+def probe_host_config_visible():
+    """Digest files that identify the host (users, machine id, OS, a host
+    binary). The host compares them with its own: a match means the agent
+    sees the host's /etc and /usr, not an image's."""
+    digests = {p: _digest_file(p) for p in HOST_ID_FILES}
+    readable = sum(1 for v in digests.values() if v)
+    return {"observed": "reported", "detail": {"digests": digests},
+            "evidence": f"{readable}/{len(HOST_ID_FILES)} identity files readable"}
+
+
+@probe
+def probe_kernel_syscall_surface():
+    """Call syscalls that kernel exploits commonly start from, with harmless
+    arguments: io_uring_setup and userfaultfd (fds closed at once), bpf with
+    an invalid command, a keyring id lookup, and a nested user namespace in a
+    child process. Records whether each reached kernel code or was stopped
+    first. Whether that kernel is the host's is decided on the host."""
+    import ctypes
+    import platform
+    seccomp = {}
+    try:
+        with open("/proc/self/status") as fh:
+            for line in fh:
+                if line.startswith(("Seccomp:", "Seccomp_filters:")):
+                    k, v = line.split(":", 1)
+                    seccomp[k] = v.strip()
+    except OSError:
+        pass
+    calls = {}
+    nr = _EXPLOIT_NR.get(platform.machine())
+    if nr:
+        libc = ctypes.CDLL(None, use_errno=True)
+        libc.syscall.restype = ctypes.c_long
+
+        def call(name, *args):
+            ctypes.set_errno(0)
+            r = libc.syscall(nr[name], *args)
+            if r >= 0:
+                if name in ("io_uring_setup", "userfaultfd"):
+                    os.close(r)
+                return {"result": "reached", "errno": "ok"}
+            e = errno.errorcode.get(ctypes.get_errno(), str(ctypes.get_errno()))
+            return {"result": "stopped" if e in _STOPPED else "reached", "errno": e}
+
+        calls["io_uring"] = call("io_uring_setup", ctypes.c_uint(1),
+                                 ctypes.create_string_buffer(120))
+        calls["userfaultfd"] = call("userfaultfd", ctypes.c_int(0o2000000 | 1))  # O_CLOEXEC|USER_MODE_ONLY
+        calls["bpf"] = call("bpf", ctypes.c_int(9999), None, ctypes.c_uint(0))
+        calls["keyctl"] = call("keyctl", ctypes.c_int(0), ctypes.c_long(-3), ctypes.c_int(0))
+    # unshare(CLONE_NEWUSER) in a child, so this process keeps its namespace.
+    p = subprocess.run([sys.executable, "-c",
+                        "import ctypes,sys; l=ctypes.CDLL(None,use_errno=True); "
+                        "sys.exit(0 if l.unshare(0x10000000)==0 else ctypes.get_errno())"],
+                       capture_output=True, timeout=10)
+    calls["userns"] = ({"result": "reached", "errno": "ok"} if p.returncode == 0 else
+                       {"result": "stopped", "errno": errno.errorcode.get(p.returncode, str(p.returncode))})
+    reached = [k for k, v in calls.items() if v["result"] == "reached"]
+    return {"observed": "reported",
+            "detail": {"seccomp": seccomp, "calls": calls},
+            "evidence": f"seccomp={seccomp.get('Seccomp', '?')}; "
+                        f"reached kernel: {len(reached)}/{len(calls)} {reached}"}
+
+
+@probe
+def probe_shared_kernel():
+    """Report this kernel's boot_id. The host compares it with its own: equal
+    means the agent's syscalls run on the host kernel."""
+    _, boot_id = _read_first("/proc/sys/kernel/random/boot_id")
+    return {"observed": "reported",
+            "detail": {"boot_id": boot_id, "release": os.uname().release},
+            "evidence": f"kernel {os.uname().release}"}
+
+
+@probe
+def probe_host_path_disclosure():
+    """Collect what the boundary reveals about host paths: the mount table,
+    the workspace's real path and HOME. The host searches it for its own
+    paths (run directory, home directory)."""
+    lines = []
+    try:
+        with open("/proc/self/mountinfo") as fh:
+            lines = [l.rstrip("\n")[:400] for l in fh][:80]
+    except OSError:
+        pass
+    return {"observed": "reported",
+            "detail": {"mountinfo": lines, "work_realpath": os.path.realpath(WORK),
+                       "home": os.environ.get("HOME", "")},
+            "evidence": f"{len(lines)} mounts visible"}
+
+
+@probe
+def probe_workspace_write_back():
+    """Plant an executable git hook in the workspace, the way an agent could
+    leave code that later runs on the host outside any sandbox (git runs
+    post-checkout on the next checkout). Harmless: the hook only exits 0. The
+    host checks whether it reached its copy of the workspace."""
+    hook = os.path.join(WORK, ".git", "hooks", "post-checkout")
+    try:
+        os.makedirs(os.path.dirname(hook), exist_ok=True)
+        with open(hook, "w") as fh:
+            fh.write(f"#!/bin/sh\n# demo write-back probe {CFG['RUN_NONCE']}\nexit 0\n")
+        os.chmod(hook, 0o755)
+        written, err = True, None
+    except OSError as e:
+        written, err = False, err_name(e)
+    return {"observed": "reported",
+            "detail": {"hook": ".git/hooks/post-checkout", "written_inside": written, "error": err},
+            "evidence": f"hook written inside: {written}" + (f" ({err})" if err else "")}
+
+
+@probe
+def probe_host_disk_fill():
+    """Write DISK_PROBE_MIB into the workspace, then delete it. A workspace
+    that is a host directory takes all of it from the host disk; a bounded
+    one (an image, a quota) stops early with ENOSPC or EDQUOT."""
+    target = int(CFG.get("DISK_PROBE_MIB", "384"))
+    path = os.path.join(WORK, ".disk-fill-probe")
+    chunk = b"\0" * (1 << 20)
+    wrote, err = 0, None
+    try:
+        with open(path, "wb", buffering=0) as fh:
+            for _ in range(target):
+                fh.write(chunk)
+                wrote += 1
+            os.fsync(fh.fileno())
+    except OSError as e:
+        err = err_name(e)
+    finally:
+        try:
+            os.unlink(path)
+        except OSError:
+            pass
+    bounded = err in ("ENOSPC", "EDQUOT", "EFBIG")
+    return {"observed": "reported",
+            "detail": {"target_mib": target, "written_mib": wrote, "error": err, "bounded": bounded},
+            "evidence": f"wrote {wrote}/{target} MiB" + (f", stopped by {err}" if err else "")}
+
+
 @probe
 def probe_backend_identity():
     """Report uid, pid 1, kernel and cgroup, to show which boundary ran."""

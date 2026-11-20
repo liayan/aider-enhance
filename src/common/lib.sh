@@ -71,6 +71,8 @@ MEM_LIMIT_MIB=$(( $(numfmt --from=iec "$LIMIT_MEM") / 1048576 ))
 MEM_PROBE_MIB=$(( $(numfmt --from=iec "$LIMIT_MEM") / 1048576 + 512 ))
 PIDS_LIMIT=${LIMIT_PIDS}
 CPUS_LIMIT=${LIMIT_CPUS}
+# Larger than the Firecracker work image (256 MiB), so a bounded workspace stops early.
+DISK_PROBE_MIB=384
 EXFIL_URLS=http://127.0.0.1:${EGRESS_PORT:-9$((RANDOM%900+100))},http://169.254.169.254/latest/meta-data
 EOF
   # Record the sink port that ended up in run.env.

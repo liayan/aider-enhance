@@ -9,6 +9,10 @@ import sys
 
 ORDER = ["baseline", "process-sandbox", "rootless-container", "firecracker"]
 SYM = {"as-expected": "ok", "UNEXPECTED": "!!", "info": "· "}
+# Residual-exposure probes (evaluate.EXPOSURE_EXPECTED), in ladder order.
+EXPOSURE = ["host-config-visible", "kernel-syscall-surface", "shared-kernel",
+            "host-path-disclosure", "workspace-write-back", "host-disk-fill"]
+WEIGHT = {"exposed": 1.0, "reduced": 0.5, "contained": 0.0}
 # Who each boundary is for; see "Why" in the README.
 USE_CASE = {"baseline": "reference only", "process-sandbox": "developer",
             "rootless-container": "automation", "firecracker": "hosted service"}
@@ -28,7 +32,9 @@ def latest_per_backend(results_dir):
             if os.path.exists(os.path.join(col, "metadata.json")) else {}
         fp = json.load(open(os.path.join(col, "footprint.json"))) \
             if os.path.exists(os.path.join(col, "footprint.json")) else {}
-        key = os.path.basename(run_dir)
+        # Run ids end in random hex, so order same-day runs by when they were
+        # captured, not by name.
+        key = (data.get("captured_utc") or "", os.path.getmtime(probes), os.path.basename(run_dir))
         prev = runs.get(backend)
         if not prev or key > prev["key"]:
             runs[backend] = {"key": key, "data": data, "meta": meta, "fp": fp}
@@ -89,16 +95,34 @@ def main(results_dir):
         st = runs[b]["data"].get("status")
         return "not-exec" if st == "not-executed" else "—"
 
+    escapes = [n for n in names if n not in EXPOSURE]
+    exposures = [n for n in EXPOSURE if n in names]
+
+    def score(b):
+        """Residual exposures: exposed counts 1, reduced 0.5."""
+        tot = 0.0
+        for p in runs[b]["data"].get("probes", []):
+            if p["probe"] in exposures:
+                tot += WEIGHT.get(p.get("observed"), 0.0)
+        return f"{tot:g} of {len(exposures)}"
+
     w = max(len("probe"), max(len(n) for n in names)) + 1
     cw = 20
     header = "probe".ljust(w) + "".join(b[:cw-1].ljust(cw) for b in backends)
     lines = [header, "-" * len(header)]
-    for name in names:
-        row = name.ljust(w) + "".join(cell(b, name).ljust(cw) for b in backends)
-        lines.append(row)
+    for name in escapes:
+        lines.append(name.ljust(w) + "".join(cell(b, name).ljust(cw) for b in backends))
 
-    print("SECURITY — observed outcome per backend")
+    print("ESCAPES — can the agent reach the host? (same answer expected everywhere)")
     print("\n".join(lines))
+    if exposures:
+        xlines = [header, "-" * len(header)]
+        for name in exposures:
+            xlines.append(name.ljust(w) + "".join(cell(b, name).ljust(cw) for b in backends))
+        xlines.append("-" * len(header))
+        xlines.append("exposures".ljust(w) + "".join(score(b).ljust(cw) for b in backends))
+        print("\nRESIDUAL EXPOSURE — what the boundary still shares with the host")
+        print("\n".join(xlines))
 
     metrics = cost_rows(runs, backends)
     cw2 = 20
@@ -120,10 +144,19 @@ def main(results_dir):
 
     md = ["# Sandbox comparison", "",
           "Observed probe outcome per backend (`ok`=as expected, `!!`=unexpected, `·`=info).",
-          "", "| probe | " + " | ".join(backends) + " |",
+          "", "## Escapes: can the agent reach the host?", "",
+          "| probe | " + " | ".join(backends) + " |",
           "|" + "---|" * (len(backends) + 1)]
-    for name in names:
+    for name in escapes:
         md.append("| " + name + " | " + " | ".join(cell(b, name).strip() for b in backends) + " |")
+    if exposures:
+        md += ["", "## Residual exposure: what the boundary still shares with the host", "",
+               "`exposed` = shared with the host, `reduced` = narrowed, `contained` = not shared.", "",
+               "| probe | " + " | ".join(backends) + " |",
+               "|" + "---|" * (len(backends) + 1)]
+        for name in exposures:
+            md.append("| " + name + " | " + " | ".join(cell(b, name).strip() for b in backends) + " |")
+        md.append("| **exposures** | " + " | ".join(f"**{score(b)}**" for b in backends) + " |")
     md += ["", "## Cost / footprint", "",
            "| metric | " + " | ".join(backends) + " |",
            "|" + "---|" * (len(backends) + 1)]

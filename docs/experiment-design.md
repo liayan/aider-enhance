@@ -107,6 +107,27 @@ that both flip when a secret or a non-model request does get through.
 Expected verdicts per backend are in
 [tests/expected-results/](../tests/expected-results/).
 
+### Residual exposure
+
+Every working boundary blocks all of the escapes above, so they can't tell
+the backends apart. The residual-exposure probes ask what the agent still
+shares with the host when every escape is blocked. The expected answer differs
+by backend; that difference is what each step up in cost buys. Each is decided
+on the host, from its own `boot_id`, file digests, run path and workspace copy.
+
+| Probe | Checks | process | container | firecracker |
+|-------|--------|---------|-----------|-------------|
+| host-config-visible    | host `/etc` and `/usr` files are byte-identical inside | exposed | contained | contained |
+| kernel-syscall-surface | io_uring, userfaultfd, bpf, keyctl and a nested user namespace reach the *host* kernel | exposed | reduced (seccomp) | contained |
+| shared-kernel          | same `boot_id` as the host | exposed | exposed | contained |
+| host-path-disclosure   | host paths (run dir, home) visible in the mount table | exposed | exposed | contained |
+| workspace-write-back   | a git hook planted inside lands in the host's workspace | exposed | exposed | contained |
+| host-disk-fill         | 384 MiB written to the workspace with no limit (Firecracker's image stops it) | exposed | exposed | contained |
+
+`./src/compare-results.sh` prints them as a separate table with a score
+(exposed = 1, reduced = 0.5), and `./src/show-probes.sh <backend> --exposure`
+shows each one's evidence for the latest run.
+
 ## Verdict rules
 
 A run passes only when the task completes, every dangerous probe is blocked,

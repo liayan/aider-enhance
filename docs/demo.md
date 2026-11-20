@@ -135,8 +135,14 @@ Point: needed for a hosted service, overkill on a laptop.
 ./src/compare-results.sh
 ```
 
-Security table first, then cost, which is labeled by use case (developer /
-automation / hosted service): time, peak RSS, disk, extra host tools.
+Escapes first: every backend blocks all of them, so they can't tell the
+tiers apart. Then residual exposure: what each tier still shares with the
+host (host /etc and /usr, exploit syscalls reaching the host kernel, the
+kernel itself, host paths, workspace write-back, disk), scored 6 → 4.5 → 0
+in our runs. Then cost, labeled by use case (developer / automation /
+hosted service): time, peak RSS, disk, extra host tools. Each step up
+removes exposures and costs something; `./src/show-probes.sh <backend>
+--exposure` shows the evidence.
 
 Caveats to say out loud:
 
