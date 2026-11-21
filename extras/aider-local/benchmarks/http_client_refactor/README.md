@@ -1,5 +1,7 @@
 # HTTP-client refactoring benchmark
 
+Run the commands on this page from `extras/aider-local/`.
+
 This workload tests a one-file refactor with real behavior checks. It was
 inspired by the supplied Aider/Codex comparison article; its fixture, prompt,
 oracle, and reference implementation are new. The article does not supply its
@@ -30,8 +32,8 @@ Use the same backend prerequisites as the
 ```bash
 python benchmarks/cli_refactor/benchmark.py run \
   --workload http-client-refactor \
-  --kernel src/firecracker/assets/vmlinux \
-  --rootfs src/firecracker/assets/rootfs.ext4 \
+  --kernel ../../src/firecracker/assets/vmlinux \
+  --rootfs ../../src/firecracker/assets/rootfs.ext4 \
   --repeats 3 --warmups 1 \
   --output results/http-client-reference
 ```
@@ -59,8 +61,8 @@ python benchmarks/cli_refactor/benchmark.py generate \
 python benchmarks/cli_refactor/benchmark.py run \
   --workload http-client-refactor \
   --candidate results/http-client-model-01/work \
-  --kernel src/firecracker/assets/vmlinux \
-  --rootfs src/firecracker/assets/rootfs.ext4 \
+  --kernel ../../src/firecracker/assets/vmlinux \
+  --rootfs ../../src/firecracker/assets/rootfs.ext4 \
   --output results/http-client-model-01-replay
 ```
 

@@ -1,23 +1,23 @@
-# Agent modes: how aider runs here
+# aider-local: local editing with sandboxed tests
 
-There are two ways to run aider here:
+Not part of the talk. This is a separate tool: aider runs on the host and
+edits your project there, and each test command it proposes runs in a
+disposable copy inside a rootless container, a Firecracker microVM or the
+process sandbox. To contain aider itself, use the main harness instead
+(see [docs/runbook.md](../../docs/runbook.md)).
 
-- **Local editing, isolated tests:** install the terminal adapter below. Aider
-  reads and edits your local project, then chooses a container or microVM for
-  each proposed test command based on the task.
-- **Whole-agent sandbox:** `src/run.sh ... --agent` runs aider itself inside
-  the boundary. The remainder of this page describes that original demo.
+Run every command on this page from `extras/aider-local/`. The container
+image and Firecracker assets come from the main harness at the repo root
+(`../../src/`).
 
-## Local editing with task-based test isolation
-
-### 1. Install the terminal commands
+## 1. Install the terminal commands
 
 The isolated-test adapter targets Linux. Use Python 3.10–3.12; the package
 pins `aider-chat==0.86.2`, which its command hooks are tested against. Installing
 upstream aider by itself does not install this adapter or its backends.
 
 With [uv](https://docs.astral.sh/uv/getting-started/installation/) installed,
-run this from the repository root:
+run this from `extras/aider-local/`:
 
 ```bash
 uv tool install --python python3.12 .
@@ -57,14 +57,14 @@ Normal aider flags, including `--model`, are passed through. The existing
 `aider` command and upstream submodule are unchanged. If you want the familiar
 command name in the current shell, use `alias aider=aider-local`.
 
-### 2. Prepare a test backend
+## 2. Prepare a test backend
 
-Start with rootless Podman on cgroup v2. From the repository root:
+Start with rootless Podman on cgroup v2. From `extras/aider-local/`:
 
 ```bash
 podman info --format '{{.Host.Security.Rootless}} {{.Host.CgroupsVersion}}'
 # Expected: true v2
-podman build -t agent-sandbox-demo:1 -f src/rootless-container/Containerfile .
+podman build -t agent-sandbox-demo:1 -f ../../src/rootless-container/Containerfile ../..
 
 # Verify the image and runner without a model or API key:
 aider-test --workspace examples/hello-project \
@@ -76,12 +76,12 @@ needs your test dependencies, but does not need aider installed inside it.
 The included example uses only Python's standard library.
 
 To also allow microVM selection, prepare the kernel and rootfs using
-[src/firecracker/README.md](src/firecracker/README.md), then set absolute paths
-while still in the repository root:
+[src/firecracker/README.md](../../src/firecracker/README.md), then set absolute paths
+while still in `extras/aider-local/`:
 
 ```bash
-export FC_KERNEL="$PWD/src/firecracker/assets/vmlinux"
-export FC_ROOTFS="$PWD/src/firecracker/assets/rootfs.ext4"
+export FC_KERNEL="$(cd ../.. && pwd)/src/firecracker/assets/vmlinux"
+export FC_ROOTFS="$(cd ../.. && pwd)/src/firecracker/assets/rootfs.ext4"
 aider-test --workspace examples/hello-project \
   'AIDER_TEST_BACKEND=microvm python3 -m unittest discover -s tests'
 ```
@@ -90,7 +90,7 @@ MicroVM execution also requires Firecracker, `mkfs.ext4`, `debugfs`, and
 read/write access to `/dev/kvm`. These components are separate from the
 Python package installation.
 
-#### Process sandbox (no container image)
+### Process sandbox (no container image)
 
 You can explicitly select the process backend in either terminal command:
 
@@ -98,7 +98,7 @@ You can explicitly select the process backend in either terminal command:
 # From your project directory:
 aider-local --test-backend process-sandbox
 
-# From this repository root, without an LLM:
+# From extras/aider-local/, without an LLM:
 aider-test --test-backend process-sandbox --workspace examples/hello-project \
   'python3 -m unittest discover -s tests'
 ```
@@ -134,7 +134,7 @@ or guest rootfs when you need an independent toolchain.
 sandbox unless a task directive explicitly requests it. A session pin to any
 other backend rejects a conflicting process-sandbox directive.
 
-### 3. Connect a model
+## 3. Connect a model
 
 For example, with a DeepSeek API key available in your shell:
 
@@ -163,9 +163,9 @@ adapter's `--test-backend` and `--sandbox-*` settings are CLI options; do not
 put them in `.aider.conf.yml`. `FC_KERNEL` and `FC_ROOTFS` provide persistent
 shell defaults for the guest paths.
 
-### 4. Edit locally, then test in a sandbox
+## 4. Edit locally, then test in a sandbox
 
-From the repository root, copy the example into a fresh directory so changes
+From `extras/aider-local/`, copy the example into a fresh directory so changes
 are easy to inspect:
 
 ```bash
@@ -208,7 +208,7 @@ Test-generated files are discarded, while aider's code edits remain in the
 demo directory. This walkthrough uses `--no-git` to avoid requiring Git identity
 setup. For a real repository, omit that flag and use your usual Git review flow.
 
-### Troubleshooting
+## Troubleshooting
 
 | Symptom | Check or fix |
 |---|---|
@@ -238,7 +238,7 @@ Command examples are checked against our pinned version and the official
 files positionally (`aider-local hello.py`): `-f` means a *message file*.
 Model listing requires a filter, for example `aider-local --list-models deepseek`.
 
-### How task-based selection works
+## How task-based selection works
 
 The default `--test-backend auto` supplies aider with read-only instructions
 to choose a backend for each proposed shell command and explain its choice:
@@ -330,206 +330,6 @@ AIDER_TEST_LIVE=1 python -m unittest discover -s tests -v
 AIDER_TEST_PROCESS_LIVE=1 python -m unittest discover -s tests -v
 ```
 
-## Whole-agent sandbox demo
-
-With `--agent`, the demo runs a real coding agent, aider (the `aider/`
-submodule, pinned in `src/versions.env`), instead of the emulator. This page
-covers where aider runs, what can leave the boundary, and how to run it.
-
-## The short version
-
-aider runs inside the sandbox. `run.sh` builds the boundary first and then
-starts aider as an ordinary process in it. aider doesn't create or control the
-sandbox.
-
-Everything aider does happens inside: its loop, reading and editing files,
-and any command it runs. The one thing that goes out is its HTTP request to
-the model. That request goes over a Unix socket (vsock for Firecracker) to a
-gateway on the host, which adds the API key and forwards it. The sandbox has
-no network and never sees the key.
-
-This is different from agents that run on the host and sandbox each tool
-call separately. There, the agent process itself (with its memory, key and
-file access) isn't contained. Here the whole agent is.
-
-## Architecture
-
-```
-HOST                                         SANDBOX (bwrap / podman / microVM)
-----                                         ------------------------
-run.sh
- |- model_gateway.py  <-- gateway.sock ---+  inside.sh
- |    holds MODEL_API_KEY                 |   |- portfwd.py  127.0.0.1:8080 -> /run/model.sock
- |    forwards to MODEL_UPSTREAM          +---|
- |    logs gateway.log, trace             |   |- aider
- |                                        |   |    prompt -> model -> edits -> write /work
- |- fake_model.py (with --fake)           |   |    reads/writes /work only
- |- egress sink, marker process           |   |
- |    (probe targets)                     |   |- acceptance tests
- |                                        |   |- probe_runner.py
- +- collect / evaluate / trajectory  <----+   (outputs left in /work)
-```
-
-One turn of the loop:
-
-```
-inside                                       host
-------                                       ----
-aider builds the prompt
-  +- POST 127.0.0.1:8080/v1/... --socket-->  gateway adds Authorization
-                                               +- HTTPS to MODEL_UPSTREAM
-  <-- reply: text with edits --------------  gateway logs usage, returns reply
-aider applies the edits to /work (local)
-repeat until the task is done
-```
-
-aider doesn't use a separate tool-call API. The model replies with text in
-aider's edit format, and aider parses it and edits the files itself.
-
-### What crosses the boundary
-
-| Action | Where | Through the socket |
-|---|---|---|
-| aider process and loop | inside | no |
-| Model request and reply | made inside, sent upstream by the host gateway | yes, the only thing |
-| File edits | inside, on `/work` | no |
-| Shell commands | inside (see below) | no |
-| Probes and acceptance tests | inside | no |
-
-The gateway forwards any path to `MODEL_UPSTREAM` and nowhere else. It is not
-a hardened proxy: it doesn't limit which endpoints on that upstream are
-called.
-
-## Implementation
-
-| File | Role |
-|---|---|
-| `src/run.sh` | Starts the gateway (and the fake model with `--fake`), runs the backend, then collects and evaluates |
-| `src/common/model_gateway.py` | Host side. Listens on `hostside/gateway.sock`, adds `Authorization: Bearer $MODEL_API_KEY`, forwards to `MODEL_UPSTREAM`, writes `gateway.log` and `gateway-trace.jsonl` with auth fields removed |
-| `src/common/portfwd.py` | Inside. Bridges `127.0.0.1:$GATEWAY_PORT` to `/run/model.sock`, or to `vsock:2:1024` in the Firecracker guest, since aider needs host:port |
-| `src/common/inside.sh` | Inside. Starts portfwd, runs aider, then the acceptance tests and probes |
-| `src/common/fake_model.py` | Offline OpenAI-compatible server. Always returns the same edit that completes the task |
-| `src/common/trajectory.py` | Builds `trajectory.json` from the gateway trace and aider's history |
-| `workload/task-agent.txt` | The task: add `summarize()` with tests and a RESULT.md |
-| `workload/acceptance/` | Tests copied in only after aider finishes, used to grade the task |
-
-How each backend gets the socket in:
-
-| Backend | Model path | Where aider comes from |
-|---|---|---|
-| `process-sandbox` | `--ro-bind hostside/gateway.sock /run/model.sock` | the host's aider |
-| `rootless-container` | `--mount type=bind,...,dst=/run/model.sock,ro`, `--network none` | the image, built with `WITH_AIDER=1` |
-| `firecracker` | vsock: guest `vsock:2:1024` -> host `hostside/fc-vsock.sock_1024` -> `gateway.sock` | `rootfs-aider.ext4`, built from the same image with `WITH_AIDER=1` |
-| `baseline` | none (no isolation) | the host's aider |
-
-A microVM can't share a Unix socket with the host, so Firecracker uses
-vsock. When the guest connects to host CID 2, port P, Firecracker connects to
-the Unix socket `<uds_path>_P` on the host. The launcher makes
-`fc-vsock.sock_1024` a symlink to `gateway.sock`, so no host-side forwarder
-is needed, and no other port has a socket behind it. In the guest,
-`portfwd.py` listens on `127.0.0.1:8080` and connects out over vsock, and
-`guest-init` brings up loopback for it. Run mode and model settings reach the
-guest in `guest.env` on the input drive.
-
-### How aider is invoked
-
-From `src/common/inside.sh`:
-
-```
-aider --yes --no-git --no-stream --no-check-update --no-show-release-notes \
-      --model "$DEMO_MODEL" --message-file /input/task-agent.txt \
-      --test-cmd "python3 -m unittest discover -s tests" --auto-test \
-      --read INSTRUCTIONS.md --read docs/THIRD_PARTY_NOTES.md \
-      src/app.py tests/test_app.py
-```
-
-- `OPENAI_API_BASE` points at portfwd and `OPENAI_API_KEY` is a dummy; the
-  gateway puts in the real key.
-- `docs/THIRD_PARTY_NOTES.md` is the prompt-injection fixture, passed as
-  read-only context so the model sees it.
-- `--no-stream` gives one response per turn, so the trace has one entry per
-  turn.
-- `--auto-test` runs the unit tests after each edit. On failure aider sends
-  the output back to the model and lets it try again, up to 3 times.
-
-### Shell commands
-
-With `--yes`, aider applies edits without asking but **declines every shell
-command the model suggests**. Upstream asks "Run shell command?" with
-`explicit_yes_required=True` (`aider/coders/base_coder.py`), and `--yes`
-answers that with no (`aider/io.py`). So in this demo aider edits files and
-runs nothing the model proposes. aider has no flag that auto-approves shell
-commands.
-
-The demo uses `--test-cmd ... --auto-test`: a fixed test command, chosen by
-us, runs after each edit and failures go back to the model. Without it the
-model can't check its own work; in an early DeepSeek run it wrote a unit test
-with a wrong expected value and never found out.
-
-For a real terminal, run aider interactively in the sandbox and approve each
-command, or patch aider to auto-approve. With the latter the model runs
-whatever it likes, which is the case the boundary is meant for. Neither is
-wired in.
-
-### What aider can touch
-
-`/work` is `results/<run>/work/`, a fresh copy of `workload/sample-repo` for
-each run. If you bind-mount a real project there instead, edits land in that
-project for real. The rest of the host is still out of reach, but the agent
-can change anything in the project, including files that run later on the
-host (Makefile, git hooks, `.envrc`). Use a clean checkout or a
-`git worktree` and review the diff.
-
-## Usage
-
-Offline, with the fake model (no key, no internet):
-
-```bash
-./src/run.sh process-sandbox --agent --fake        # needs aider on the host
-
-podman build --build-arg WITH_AIDER=1 -t agent-sandbox-demo:1 \
-  -f src/rootless-container/Containerfile .
-./src/run.sh rootless-container --agent --fake
-
-sudo env WITH_AIDER=1 src/firecracker/build-guest.sh   # rootfs-aider.ext4
-./src/run.sh firecracker --agent --fake
-```
-
-With a real model:
-
-```bash
-export MODEL_API_KEY=sk-...
-export DEMO_MODEL=openai/gpt-4o-mini          # default
-export MODEL_UPSTREAM=https://api.openai.com  # default
-./src/run.sh rootless-container --agent
-```
-
-The default image (no build arg) has no aider, and the launcher refuses
-`--agent` with it. Rebuild without the arg afterwards if you want the
-smaller image back for emulate-mode footprint numbers.
-
-### Output
-
-In `results/<run>/collected/`:
-
-| File | Contents |
-|---|---|
-| `gateway.log` | One line per request: path, bytes, status, token usage |
-| `gateway-trace.jsonl` | Per-turn request and response bodies, auth removed |
-| `trajectory.json` | Turns, tokens, files edited, whether the acceptance tests passed |
-| `agent.log` | aider's output |
-| `.aider.chat.history.md`, `.aider.llm.history` | aider's own history |
-| `acceptance.log`, `.acceptance_rc` | Acceptance test results |
-| `probes.json` | Probe verdicts, same as emulate mode |
-
-Things to check after a run:
-
-- `gateway.log` has the model calls, and `metadata.json` shows
-  `network_mode=gateway-socket` (`gateway-vsock` for Firecracker).
-- The key doesn't appear anywhere in `collected/`.
-- `prompt-injection-marker` shows whether the model followed the injection;
-  `network-egress` and `outside-workspace-write` show whether it could have
-  gotten anything out.
 
 ## Reproducible refactoring benchmarks
 
@@ -542,8 +342,8 @@ usage separately from sandbox execution timings.
 
 ```bash
 python benchmarks/cli_refactor/benchmark.py run \
-  --kernel src/firecracker/assets/vmlinux \
-  --rootfs src/firecracker/assets/rootfs.ext4 \
+  --kernel ../../src/firecracker/assets/vmlinux \
+  --rootfs ../../src/firecracker/assets/rootfs.ext4 \
   --output results/cli-refactor-reference
 
 # Add --workload http-client-refactor to run the HTTP workload.

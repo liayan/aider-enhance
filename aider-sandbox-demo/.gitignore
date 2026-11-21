@@ -1,5 +1,0 @@
-runs/
-*.sock
-*.ext4
-*.img
-.env
