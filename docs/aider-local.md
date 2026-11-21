@@ -1,14 +1,12 @@
 # aider-local: local editing with sandboxed tests
 
-Not part of the talk. This is a separate tool: aider runs on the host and
-edits your project there, and each test command it proposes runs in a
-disposable copy inside a rootless container, a Firecracker microVM or the
-process sandbox. To contain aider itself, use the main harness instead
-(see [docs/runbook.md](../../docs/runbook.md)).
+aider runs on the host and edits your project there; each test command it
+proposes runs in a disposable copy inside a rootless container, a
+Firecracker microVM or the process sandbox, reusing the talk's boundaries.
+To contain aider itself, use the whole-agent harness instead (see
+[runbook.md](runbook.md)).
 
-Run every command on this page from `extras/aider-local/`. The container
-image and Firecracker assets come from the main harness at the repo root
-(`../../src/`).
+Run every command on this page from the repository root.
 
 ## 1. Install the terminal commands
 
@@ -17,7 +15,7 @@ pins `aider-chat==0.86.2`, which its command hooks are tested against. Installin
 upstream aider by itself does not install this adapter or its backends.
 
 With [uv](https://docs.astral.sh/uv/getting-started/installation/) installed,
-run this from `extras/aider-local/`:
+run this from the repository root:
 
 ```bash
 uv tool install --python python3.12 .
@@ -59,12 +57,12 @@ command name in the current shell, use `alias aider=aider-local`.
 
 ## 2. Prepare a test backend
 
-Start with rootless Podman on cgroup v2. From `extras/aider-local/`:
+Start with rootless Podman on cgroup v2. From the repository root:
 
 ```bash
 podman info --format '{{.Host.Security.Rootless}} {{.Host.CgroupsVersion}}'
 # Expected: true v2
-podman build -t agent-sandbox-demo:1 -f ../../src/rootless-container/Containerfile ../..
+podman build -t agent-sandbox-demo:1 -f src/rootless-container/Containerfile .
 
 # Verify the image and runner without a model or API key:
 aider-test --workspace examples/hello-project \
@@ -76,12 +74,12 @@ needs your test dependencies, but does not need aider installed inside it.
 The included example uses only Python's standard library.
 
 To also allow microVM selection, prepare the kernel and rootfs using
-[src/firecracker/README.md](../../src/firecracker/README.md), then set absolute paths
-while still in `extras/aider-local/`:
+[src/firecracker/README.md](../src/firecracker/README.md), then set absolute paths
+while still in the repository root:
 
 ```bash
-export FC_KERNEL="$(cd ../.. && pwd)/src/firecracker/assets/vmlinux"
-export FC_ROOTFS="$(cd ../.. && pwd)/src/firecracker/assets/rootfs.ext4"
+export FC_KERNEL="$PWD/src/firecracker/assets/vmlinux"
+export FC_ROOTFS="$PWD/src/firecracker/assets/rootfs.ext4"
 aider-test --workspace examples/hello-project \
   'AIDER_TEST_BACKEND=microvm python3 -m unittest discover -s tests'
 ```
@@ -98,7 +96,7 @@ You can explicitly select the process backend in either terminal command:
 # From your project directory:
 aider-local --test-backend process-sandbox
 
-# From extras/aider-local/, without an LLM:
+# From this repository root, without an LLM:
 aider-test --test-backend process-sandbox --workspace examples/hello-project \
   'python3 -m unittest discover -s tests'
 ```
@@ -165,7 +163,7 @@ shell defaults for the guest paths.
 
 ## 4. Edit locally, then test in a sandbox
 
-From `extras/aider-local/`, copy the example into a fresh directory so changes
+From the repository root, copy the example into a fresh directory so changes
 are easy to inspect:
 
 ```bash
@@ -333,8 +331,8 @@ AIDER_TEST_PROCESS_LIVE=1 python -m unittest discover -s tests -v
 
 ## Reproducible refactoring benchmarks
 
-The [CLI benchmark](benchmarks/cli_refactor/README.md) covers a fixed five-command
-refactor. The [HTTP-client benchmark](benchmarks/http_client_refactor/README.md)
+The [CLI benchmark](../benchmarks/cli_refactor/README.md) covers a fixed five-command
+refactor. The [HTTP-client benchmark](../benchmarks/http_client_refactor/README.md)
 adds offline retry, timeout, logging and strict file-scope checks. Both use
 repeated process-sandbox, Podman and Firecracker comparisons. Offline replay uses a reference refactor
 without model calls. Optional Aider generation records actual per-request token
@@ -342,8 +340,8 @@ usage separately from sandbox execution timings.
 
 ```bash
 python benchmarks/cli_refactor/benchmark.py run \
-  --kernel ../../src/firecracker/assets/vmlinux \
-  --rootfs ../../src/firecracker/assets/rootfs.ext4 \
+  --kernel src/firecracker/assets/vmlinux \
+  --rootfs src/firecracker/assets/rootfs.ext4 \
   --output results/cli-refactor-reference
 
 # Add --workload http-client-refactor to run the HTTP workload.

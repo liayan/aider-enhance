@@ -21,7 +21,7 @@ directory per run under a private results root, and reads each run's
 offline fake model.
 
 Usage:
-  python extras/benchmarks/sandbox_security/benchmark.py \
+  python benchmarks/sandbox_security/benchmark.py \
       --backends process-sandbox baseline \
       --repeats 5 --warmups 1 --seed 0 \
       --mem-sweep 256M,512M,1G \
@@ -41,7 +41,7 @@ import subprocess
 import sys
 import time
 
-REPO = os.path.realpath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+REPO = os.path.realpath(os.path.join(os.path.dirname(__file__), "..", ".."))
 RUN_SH = os.path.join(REPO, "src", "run.sh")
 ALL_BACKENDS = ["baseline", "process-sandbox", "rootless-container", "firecracker"]
 

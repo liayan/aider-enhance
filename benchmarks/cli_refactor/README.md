@@ -1,7 +1,5 @@
 # Local-editing benchmarks
 
-Run the commands on this page from `extras/aider-local/`.
-
 The harness also supports the [HTTP-client refactoring workload](../http_client_refactor/README.md).
 Pass `--workload http-client-refactor` to `prepare`, `generate` or `run`.
 The default workload remains `cli-refactor`.
@@ -27,12 +25,12 @@ new. Files under `results/` are Git-ignored.
 
 ## Offline sandbox comparison
 
-First provision the backends using the [aider-local guide](../../README.md#2-prepare-a-test-backend). Then:
+First provision the backends using the [aider-local guide](../../docs/aider-local.md#2-prepare-a-test-backend). Then:
 
 ```bash
 python benchmarks/cli_refactor/benchmark.py run \
-  --kernel ../../src/firecracker/assets/vmlinux \
-  --rootfs ../../src/firecracker/assets/rootfs.ext4 \
+  --kernel src/firecracker/assets/vmlinux \
+  --rootfs src/firecracker/assets/rootfs.ext4 \
   --repeats 3 --warmups 1 --seed 0 \
   --output results/cli-refactor-reference
 ```
@@ -76,8 +74,8 @@ python benchmarks/cli_refactor/benchmark.py generate \
 
 python benchmarks/cli_refactor/benchmark.py run \
   --candidate results/cli-refactor-model-01/work \
-  --kernel ../../src/firecracker/assets/vmlinux \
-  --rootfs ../../src/firecracker/assets/rootfs.ext4 \
+  --kernel src/firecracker/assets/vmlinux \
+  --rootfs src/firecracker/assets/rootfs.ext4 \
   --output results/cli-refactor-model-01-replay
 ```
 

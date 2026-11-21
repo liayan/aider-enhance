@@ -20,8 +20,11 @@ decided outside the sandbox, from evidence the agent can't touch.
 | [docs/demo.md](docs/demo.md) | Live demo run-through, in talk order |
 | [docs/runbook.md](docs/runbook.md) | How aider runs inside the sandbox and what crosses the boundary |
 | [docs/architecture.md](docs/architecture.md) | Beginner's guide to how aider works |
+| [aider_local/](aider_local/), [docs/aider-local.md](docs/aider-local.md) | `aider-local`: aider edits on the host, each test runs in a disposable sandbox |
+| [benchmarks/](benchmarks/) | Repeated security runs, and refactoring benchmarks for `aider-local` |
+| [examples/](examples/), [tests/](tests/) | Example project and Python tests for `aider-local` |
 | [video/](video/) | Recordings of the three demo runs |
-| [extras/](extras/) | Material outside the talk: Kubernetes port, benchmarks, the `aider-local` tool |
+| [extras/k8s/](extras/k8s/) | Kubernetes port, future work for KubeCon |
 | `aider/` | Upstream aider as a submodule, at the version in `src/versions.env` (`git submodule update --init`) |
 
 ## 1. Why: the agent acts as you
@@ -231,6 +234,37 @@ individual developer needs it. Its cost is mostly setup: a rootfs per
 toolchain (842 MB here, 2 GB with aider), a kernel, KVM and root to build
 them. In these runs it didn't start slower than the container.
 
+## 6. Everyday use: aider-local
+
+The harness above puts all of aider inside the boundary. For everyday
+terminal use, `aider-local` keeps aider and its edits on the host and runs
+each test command it proposes in a disposable copy of the project, in one of
+the same boundaries: rootless container, Firecracker microVM or (explicitly)
+the process sandbox. `auto` picks the backend per task. Failed tests go back
+to aider for repair.
+
+```bash
+uv tool install --python python3.12 .
+podman build -t agent-sandbox-demo:1 -f src/rootless-container/Containerfile .
+aider-test --workspace examples/hello-project \
+  'python3 -m unittest discover -s tests'      # no model or API key needed
+```
+
+This installs `aider-local` and `aider-test`, pinned to aider 0.86.2. See
+[docs/aider-local.md](docs/aider-local.md) for model setup, the edit-and-test
+walkthrough, microVM setup and troubleshooting.
+
+## Benchmarks
+
+- [benchmarks/sandbox_security/](benchmarks/sandbox_security/) repeats the
+  probe run N times per backend and sweeps memory limits, so a limit isn't
+  passing by luck.
+- The [CLI](benchmarks/cli_refactor/README.md) and
+  [HTTP-client](benchmarks/http_client_refactor/README.md) refactoring
+  benchmarks compare `aider-local` test runs across process sandbox, Podman
+  and Firecracker. Offline replay uses a reference refactor without model
+  calls.
+
 ## Output
 
 ```
@@ -252,22 +286,14 @@ repo, probes, resource limits. Different by design: the boundary itself,
 startup time, filesystem layout, process visibility, networking, how the
 workspace gets in.
 
-## Beyond the talk
+## Future work: Kubernetes (KubeCon)
 
-Everything under [extras/](extras/) is outside the talk's scope:
-
-- [extras/k8s/](extras/k8s/): the same harness on Kubernetes with
-  [agent-sandbox](https://github.com/kubernetes-sigs/agent-sandbox) on runc,
-  gVisor and Kata. The manifests validate against the agent-sandbox v1beta1
-  CRD but haven't run on a cluster yet. On a CNI that doesn't enforce
-  NetworkPolicy, the policy is accepted and nothing is blocked, so the port
-  tests for that instead of assuming it.
-- [extras/benchmarks/sandbox_security/](extras/benchmarks/sandbox_security/):
-  repeats the probe run N times per backend and sweeps memory limits.
-- [extras/aider-local/](extras/aider-local/): a separate, installable tool.
-  aider edits on the host and each test command runs in a disposable sandbox.
-  It includes the CLI and HTTP-client refactoring benchmarks and the Python
-  test suite.
+[extras/k8s/](extras/k8s/) ports the harness to Kubernetes with
+[agent-sandbox](https://github.com/kubernetes-sigs/agent-sandbox) on runc,
+gVisor and Kata. The manifests validate against the agent-sandbox v1beta1 CRD
+but haven't run on a cluster yet. On a CNI that doesn't enforce
+NetworkPolicy, the policy is accepted and nothing is blocked, so the port
+tests for that instead of assuming it.
 
 ### Roadmap
 

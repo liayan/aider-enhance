@@ -117,18 +117,18 @@ This repository has **two ways to run Aider**, with different boundaries:
 | Mode | Where Aider edits | Where commands/tests run | Main entry point |
 | --- | --- | --- | --- |
 | Upstream `aider` | Your working tree | Normally on the host | [`aider.main`](../aider/aider/main.py) |
-| `aider-local` | Your working tree | A disposable copy in an explicitly chosen or automatically selected sandbox | [`aider_local/cli.py`](../extras/aider-local/aider_local/cli.py) |
+| `aider-local` | Your working tree | A disposable copy in an explicitly chosen or automatically selected sandbox | [`aider_local/cli.py`](../aider_local/cli.py) |
 | Whole-agent demo | Inside a process sandbox, container, or microVM | In that same boundary | [`src/run.sh`](../src/run.sh) |
 
-`aider-local` is a thin adapter around pinned Aider 0.86.2. It supplies a read-only [test policy](../extras/aider-local/aider_local/policy.md) and replaces the two upstream `run_cmd` references used by `/run`, `/test`, automatic tests, and approved model-suggested commands for that session. It restores the original references afterward. [Runner](../extras/aider-local/aider_local/runner.py) copies a bounded snapshot of the project, chooses an available backend, executes the command there, and returns output and exit status. Changes made by a test inside that copy are discarded. Aider's own file edits, Git operations, and any explicitly enabled lint hooks still act on the host; the adapter disables auto-lint by default. See the [runbook](../extras/aider-local/README.md) for installation and backend requirements.
+`aider-local` is a thin adapter around pinned Aider 0.86.2. It supplies a read-only [test policy](../aider_local/policy.md) and replaces the two upstream `run_cmd` references used by `/run`, `/test`, automatic tests, and approved model-suggested commands for that session. It restores the original references afterward. [Runner](../aider_local/runner.py) copies a bounded snapshot of the project, chooses an available backend, executes the command there, and returns output and exit status. Changes made by a test inside that copy are discarded. Aider's own file edits, Git operations, and any explicitly enabled lint hooks still act on the host; the adapter disables auto-lint by default. See the [runbook](aider-local.md) for installation and backend requirements.
 
-`auto` for isolated tests prefers the ready rootless Podman container and otherwise uses a configured Firecracker microVM. You can pin `process-sandbox` explicitly; it is not chosen by `auto`. A task can request a specific backend with `AIDER_TEST_BACKEND=container`, `microvm`, or `process-sandbox` before a command. If that requested backend is unavailable, the runner reports an error instead of executing on the host. [The policy](../extras/aider-local/aider_local/policy.md) describes how the model is asked to choose, while [the runner](../extras/aider-local/aider_local/runner.py) enforces the actual choice and no-host fallback.
+`auto` for isolated tests prefers the ready rootless Podman container and otherwise uses a configured Firecracker microVM. You can pin `process-sandbox` explicitly; it is not chosen by `auto`. A task can request a specific backend with `AIDER_TEST_BACKEND=container`, `microvm`, or `process-sandbox` before a command. If that requested backend is unavailable, the runner reports an error instead of executing on the host. [The policy](../aider_local/policy.md) describes how the model is asked to choose, while [the runner](../aider_local/runner.py) enforces the actual choice and no-host fallback.
 
-The whole-agent demo is a different security experiment. It runs Aider itself inside a boundary, whereas `aider-local` leaves the Aider process and source edits on the host and isolates only its shell commands. Those are different trust models. The [README](../README.md) and [runbook](../extras/aider-local/README.md) explain when each is useful.
+The whole-agent demo is a different security experiment. It runs Aider itself inside a boundary, whereas `aider-local` leaves the Aider process and source edits on the host and isolates only its shell commands. Those are different trust models. The [README](../README.md) and [runbook](aider-local.md) explain when each is useful.
 
 ## A first hands-on session
 
-Once `aider-local` and a model are configured as described in the [runbook](../extras/aider-local/README.md), try a small Git project:
+Once `aider-local` and a model are configured as described in the [runbook](aider-local.md), try a small Git project:
 
 ```text
 $ aider-local --test-backend container app.py tests/test_app.py
