@@ -1,5 +1,7 @@
 # aider-enhance
 
+Slides: https://xryan.net/talks/olf-2026/index.htm
+
 We run an AI coding agent (aider) in sandboxes and test each sandbox by trying
 to break out of it. Same agent, same repo, same task, same planted prompt
 injection, same probes; only the boundary changes. Pass or fail is decided
