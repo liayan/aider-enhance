@@ -18,7 +18,7 @@ decided outside the sandbox, from evidence the agent can't touch.
 | [tests/](tests/) | Verification only, not needed to run: [unit/](tests/unit/) tests with [run-unit-tests.sh](tests/run-unit-tests.sh), [benchmarks/](tests/benchmarks/), [expected-results/](tests/expected-results/), [fixtures/](tests/fixtures/) |
 | [setup/](setup/) | Environment setup: preflight, container image, Firecracker guest, aider-local install. Start with [setup/README.md](setup/README.md) |
 | [video/](video/) | Recordings of the three demo runs |
-| [todo/](todo/) | Future work: the Kubernetes port for KubeCon |
+| [k8s-todo/](k8s-todo/) | Future work: the Kubernetes port |
 | `aider/` | Upstream aider as a submodule, at the version in `src/versions.env` |
 | `results/` | Run output (not committed) |
 
@@ -136,9 +136,9 @@ aider-test --workspace tests/fixtures/hello-project \
 
 See [docs/aider-local.md](docs/aider-local.md).
 
-## Future work: Kubernetes (KubeCon)
+## Future work: Kubernetes
 
-[todo/k8s/](todo/k8s/) ports the harness to Kubernetes with
+[k8s-todo/](k8s-todo/) ports the harness to Kubernetes with
 [agent-sandbox](https://github.com/kubernetes-sigs/agent-sandbox) on runc,
 gVisor and Kata. The manifests validate against the agent-sandbox v1beta1 CRD
 but haven't run on a cluster yet. On a CNI that doesn't enforce

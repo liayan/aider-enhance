@@ -1,5 +1,8 @@
 # Kubernetes scaffold (draft)
 
+Future work, not part of the OLF 2026 talk; the talk's harness is in
+[../src/](../src/).
+
 Same workload and probes as the local backends, run as
 [agent-sandbox](https://github.com/kubernetes-sigs/agent-sandbox) `Sandbox`
 objects on three isolation tiers.
@@ -9,7 +12,7 @@ Status: **manifests validated, not yet run on a cluster.** Every file passes
 validate against the agent-sandbox `v1beta1` CRD (upstream commit `68db683`,
 checked 26 Sep 2026; re-checked with unknown fields rejected against v1.0.5,
 `43ef54a`, on 3 Oct 2026). The first cluster run is the next task on the
-[roadmap](../../README.md#roadmap).
+[roadmap](../README.md#roadmap).
 
 | Tier | `runtimeClassName` | Kernel |
 |---|---|---|
@@ -49,12 +52,12 @@ and CPU limits.
 ## Apply order
 
 ```bash
-podman build -t agent-lab:1 -f todo/k8s/Containerfile .   # + load/push to the node
-kubectl apply -f todo/k8s/00-namespaces.yaml -f todo/k8s/05-runtimeclass-gvisor.yaml
+podman build -t agent-lab:1 -f k8s-todo/Containerfile .   # + load/push to the node
+kubectl apply -f k8s-todo/00-namespaces.yaml -f k8s-todo/05-runtimeclass-gvisor.yaml
 kubectl -n agent-gateway create secret generic model-key --from-literal=api-key="$MODEL_API_KEY"
-kubectl apply -f todo/k8s/10-gateway.yaml -f todo/k8s/20-evidence-sink.yaml -f todo/k8s/30-networkpolicy.yaml
+kubectl apply -f k8s-todo/10-gateway.yaml -f k8s-todo/20-evidence-sink.yaml -f k8s-todo/30-networkpolicy.yaml
 # per run: create ConfigMap agent-run-input (see "Still to build"), then a tier:
-kubectl apply -f todo/k8s/41-sandbox-gvisor.yaml
+kubectl apply -f k8s-todo/41-sandbox-gvisor.yaml
 kubectl -n agent-lab logs -f -l tier=gvisor     # wait for "DONE rc=..."
 ```
 
