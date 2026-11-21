@@ -78,8 +78,8 @@ called.
 | `src/common/inside.sh` | Inside. Starts portfwd, runs aider, then the acceptance tests and probes |
 | `src/common/fake_model.py` | Offline OpenAI-compatible server. Always returns the same edit that completes the task |
 | `src/common/trajectory.py` | Builds `trajectory.json` from the gateway trace and aider's history |
-| `tests/workload/task-agent.txt` | The task: add `summarize()` with tests and a RESULT.md |
-| `tests/workload/acceptance/` | Tests copied in only after aider finishes, used to grade the task |
+| `src/workload/task-agent.txt` | The task: add `summarize()` with tests and a RESULT.md |
+| `src/workload/acceptance/` | Tests copied in only after aider finishes, used to grade the task |
 
 How each backend gets the socket in:
 
@@ -141,7 +141,7 @@ wired in.
 
 ### What aider can touch
 
-`/work` is `results/<run>/work/`, a fresh copy of `tests/workload/sample-repo` for
+`/work` is `results/<run>/work/`, a fresh copy of `src/workload/sample-repo` for
 each run. If you bind-mount a real project there instead, edits land in that
 project for real. The rest of the host is still out of reach, but the agent
 can change anything in the project, including files that run later on the

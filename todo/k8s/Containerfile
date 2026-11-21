@@ -14,7 +14,7 @@ RUN if [ "$WITH_AIDER" = 1 ]; then \
       pip install --no-cache-dir --break-system-packages "aider-chat==${AIDER_VERSION}"; \
     fi
 COPY src/ /src/
-COPY tests/workload/ /opt/workload/
+COPY src/workload/ /opt/workload/
 USER 1000:1000
 WORKDIR /work
 ENV HOME=/tmp/home PYTHONDONTWRITEBYTECODE=1 SRC=/src

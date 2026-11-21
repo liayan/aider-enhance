@@ -21,7 +21,7 @@ checked 26 Sep 2026; re-checked with unknown fields rejected against v1.0.5,
 
 | File | What |
 |---|---|
-| `Containerfile` | image with `src/` and `tests/workload/` baked in (no host mounts in a cluster) |
+| `Containerfile` | image with `src/` (including the workload) baked in (no host mounts in a cluster) |
 | `00-namespaces.yaml` | `agent-lab` (Pod Security `restricted`), `agent-gateway`, `agent-evidence` |
 | `05-runtimeclass-gvisor.yaml` | gVisor RuntimeClass; kata-deploy creates the Kata ones |
 | `10-gateway.yaml` | model gateway; the API key is a Secret in `agent-gateway` only |

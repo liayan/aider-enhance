@@ -13,9 +13,9 @@ decided outside the sandbox, from evidence the agent can't touch.
 
 | Path | What it is |
 |---|---|
-| [src/](src/) | All code. The harness (`run.sh`, `compare-results.sh`, [common/](src/common/) probes, gateway and evaluation), one launcher per tier ([process-sandbox/](src/process-sandbox/), [rootless-container/](src/rootless-container/), [firecracker/](src/firecracker/)), and the [aider_local/](src/aider_local/) package |
+| [src/](src/) | Everything a run needs. The harness (`run.sh`, `compare-results.sh`, [common/](src/common/) probes, gateway and evaluation), one launcher per tier ([process-sandbox/](src/process-sandbox/), [rootless-container/](src/rootless-container/), [firecracker/](src/firecracker/)), the [workload/](src/workload/) (sample repo, task, planted injection, acceptance tests) and the [aider_local/](src/aider_local/) package |
 | [docs/](docs/) | [experiment-design.md](docs/experiment-design.md) (threat model, variables, probes, verdict rules, metrics), [demo.md](docs/demo.md) (stage run-through), [runbook.md](docs/runbook.md) (what crosses the boundary), [aider-local.md](docs/aider-local.md), [architecture.md](docs/architecture.md) (how aider works) |
-| [tests/](tests/) | [workload/](tests/workload/) (sample repo, task, planted injection, acceptance tests), [expected-results/](tests/expected-results/), [benchmarks/](tests/benchmarks/), [unit/](tests/unit/) tests with [run-unit-tests.sh](tests/run-unit-tests.sh), [fixtures/](tests/fixtures/) |
+| [tests/](tests/) | Verification only, not needed to run: [unit/](tests/unit/) tests with [run-unit-tests.sh](tests/run-unit-tests.sh), [benchmarks/](tests/benchmarks/), [expected-results/](tests/expected-results/), [fixtures/](tests/fixtures/) |
 | [setup/](setup/) | Environment setup: preflight, container image, Firecracker guest, aider-local install. Start with [setup/README.md](setup/README.md) |
 | [video/](video/) | Recordings of the three demo runs |
 | [todo/](todo/) | Future work: the Kubernetes port for KubeCon |
