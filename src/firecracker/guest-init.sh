@@ -13,7 +13,7 @@ mkdir -p /tmp/home
 chown 1000:1000 /tmp/home
 
 # vda rootfs (ro), vdb work (rw), vdc input + src (ro). The rootfs is
-# read-only, so /input and /src are symlinks made by build-guest.sh.
+# read-only, so /input and /src are symlinks made by setup/build-firecracker-guest.sh.
 mount -o rw,nosuid,nodev /dev/vdb /work 2>/dev/null || echo "guest: work mount failed"
 mount -o ro,nosuid,nodev /dev/vdc /mnt/input 2>/dev/null || echo "guest: input mount failed"
 chown -R 1000:1000 /work

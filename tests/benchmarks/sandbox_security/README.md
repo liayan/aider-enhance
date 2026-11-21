@@ -23,7 +23,7 @@ exercises the real agent path with the offline fake model.
 ```bash
 # provision backends first (see ../../docs/runbook.md); process-sandbox needs a
 # systemd user scope for its cgroup limits, so it won't run where that's absent.
-python benchmarks/sandbox_security/benchmark.py \
+python tests/benchmarks/sandbox_security/benchmark.py \
   --backends process-sandbox rootless-container firecracker baseline \
   --repeats 5 --warmups 1 --seed 0 \
   --mem-sweep 256M,512M,1G \

@@ -7,7 +7,7 @@ REPO_ROOT="$(cd "$SRC_DIR/.." && pwd)"
 # shellcheck disable=SC1091
 source "$SRC_DIR/versions.env"
 
-WORKLOAD_DIR="$REPO_ROOT/workload"
+WORKLOAD_DIR="$REPO_ROOT/tests/workload"
 RESULTS_DIR="${DEMO_RESULTS_DIR:-$REPO_ROOT/results}"
 
 c_red=$'\033[31m'; c_grn=$'\033[32m'; c_yel=$'\033[33m'; c_blu=$'\033[34m'; c_rst=$'\033[0m'

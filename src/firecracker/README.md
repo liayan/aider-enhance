@@ -7,10 +7,10 @@
 cp /path/to/vmlinux src/firecracker/assets/vmlinux
 
 # rootfs from the python image; needs root for the loop mount
-sudo env ROOTFS_MB=800 src/firecracker/build-guest.sh
+sudo env ROOTFS_MB=800 setup/build-firecracker-guest.sh
 
 # for --agent: rootfs-aider.ext4, built from the container image with aider
-sudo env WITH_AIDER=1 src/firecracker/build-guest.sh
+sudo env WITH_AIDER=1 setup/build-firecracker-guest.sh
 ```
 
 Pin the printed digests in `versions.env`.

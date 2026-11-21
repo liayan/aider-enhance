@@ -14,6 +14,7 @@ aider-local = "aider_local.cli:main"
 aider-test = "aider_local.cli:test_main"
 
 [tool.setuptools.packages.find]
+where = ["src"]
 include = ["aider_local*"]
 
 [tool.setuptools.package-data]

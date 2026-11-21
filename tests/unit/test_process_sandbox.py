@@ -168,6 +168,6 @@ raise SystemExit(7)
         root = Path(__file__).resolve().parents[1]
         code, output = Runner(Settings()).run(
             'AIDER_TEST_BACKEND=process-sandbox python3 -m unittest discover -s tests',
-            root / 'examples/hello-project')
+            root / 'fixtures/hello-project')
         self.assertEqual(code, 0, output)
         self.assertIn('Ran 2 tests', output)

@@ -36,8 +36,8 @@ EOF
 }
 [ -e /dev/kvm ] || skip "no /dev/kvm"
 command -v "$FC_BIN" >/dev/null || skip "firecracker binary not found"
-[ -f "$KERNEL" ] || skip "kernel image missing ($KERNEL) — run build-guest.sh"
-[ -f "$ROOTFS" ] || skip "rootfs missing ($ROOTFS) — run build-guest.sh"
+[ -f "$KERNEL" ] || skip "kernel image missing ($KERNEL) — run setup/build-firecracker-guest.sh"
+[ -f "$ROOTFS" ] || skip "rootfs missing ($ROOTFS) — run setup/build-firecracker-guest.sh"
 
 RUN_MODE="${RUN_MODE:-emulate}"
 # Guest-initiated vsock connections to port P reach the host Unix socket
@@ -47,14 +47,14 @@ VSOCK_UDS="$RUN_DIR/hostside/fc-vsock.sock"
 MODEL_VSOCK_PORT=1024
 if [ "$RUN_MODE" = "agent" ]; then
   debugfs -R "stat /usr/local/bin/aider" "$ROOTFS" 2>/dev/null | grep -q "Type: regular" || \
-    die "rootfs $ROOTFS has no aider; build it with: sudo env WITH_AIDER=1 $HERE/build-guest.sh"
+    die "rootfs $ROOTFS has no aider; build it with: sudo env WITH_AIDER=1 $REPO_ROOT/setup/build-firecracker-guest.sh"
   ln -sfn gateway.sock "${VSOCK_UDS}_${MODEL_VSOCK_PORT}"
 fi
 
 # guest-init is baked into the rootfs; the policy digest below is taken from
 # the repo copy, so refuse a rootfs built from an older one.
 debugfs -R "cat /sbin/guest-init" "$ROOTFS" 2>/dev/null | cmp -s - "$HERE/guest-init.sh" || \
-  die "guest-init in $ROOTFS differs from $HERE/guest-init.sh; rebuild with build-guest.sh"
+  die "guest-init in $ROOTFS differs from $HERE/guest-init.sh; rebuild with setup/build-firecracker-guest.sh"
 
 KERNEL_SHA="sha256:$(sha256sum "$KERNEL" | cut -d' ' -f1)"
 ROOTFS_SHA="sha256:$(sha256sum "$ROOTFS" | cut -d' ' -f1)"

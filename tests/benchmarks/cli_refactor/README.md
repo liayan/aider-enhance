@@ -25,10 +25,10 @@ new. Files under `results/` are Git-ignored.
 
 ## Offline sandbox comparison
 
-First provision the backends using the [aider-local guide](../../docs/aider-local.md#2-prepare-a-test-backend). Then:
+First provision the backends using the [aider-local guide](../../../docs/aider-local.md#2-prepare-a-test-backend). Then:
 
 ```bash
-python benchmarks/cli_refactor/benchmark.py run \
+python tests/benchmarks/cli_refactor/benchmark.py run \
   --kernel src/firecracker/assets/vmlinux \
   --rootfs src/firecracker/assets/rootfs.ext4 \
   --repeats 3 --warmups 1 --seed 0 \
@@ -66,13 +66,13 @@ model ID; `/v1` is needed only when the provider's endpoint requires it. The
 recorder supports non-streaming OpenAI-compatible chat completions.
 
 ```bash
-python benchmarks/cli_refactor/benchmark.py generate \
+python tests/benchmarks/cli_refactor/benchmark.py generate \
   --model openai/YOUR_MODEL_ID \
   --api-base https://YOUR_PROVIDER/v1 \
   --backend container --map-tokens 1024 \
   --output results/cli-refactor-model-01
 
-python benchmarks/cli_refactor/benchmark.py run \
+python tests/benchmarks/cli_refactor/benchmark.py run \
   --candidate results/cli-refactor-model-01/work \
   --kernel src/firecracker/assets/vmlinux \
   --rootfs src/firecracker/assets/rootfs.ext4 \
@@ -117,7 +117,7 @@ record that preflight separately rather than counting it as workload usage.
 For manual editing without any model request:
 
 ```bash
-python benchmarks/cli_refactor/benchmark.py prepare \
+python tests/benchmarks/cli_refactor/benchmark.py prepare \
   --output results/cli-refactor-manual
 # Edit results/cli-refactor-manual/work/mycli, then replay that candidate.
 ```

@@ -7,8 +7,8 @@
 # assets/rootfs-aider.ext4 instead, which --agent runs use.
 set -euo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "$HERE/../common/lib.sh"
-ASSETS="$HERE/assets"; mkdir -p "$ASSETS"
+source "$HERE/../src/common/lib.sh"
+ASSETS="$SRC_DIR/firecracker/assets"; mkdir -p "$ASSETS"
 WITH_AIDER="${WITH_AIDER:-0}"
 SIZE_MB="${ROOTFS_MB:-$([ "$WITH_AIDER" = 1 ] && echo 2048 || echo 800)}"
 
@@ -26,7 +26,7 @@ fi
 IMG="${GUEST_IMAGE:-docker.io/library/python:3.12-slim-bookworm}"
 if [ "$WITH_AIDER" = 1 ]; then
   IMG="$(podman build -q --build-arg WITH_AIDER=1 \
-    -f "$HERE/../rootless-container/Containerfile" "$REPO_ROOT")"
+    -f "$SRC_DIR/rootless-container/Containerfile" "$REPO_ROOT")"
 fi
 ROOTFS="$ASSETS/$([ "$WITH_AIDER" = 1 ] && echo rootfs-aider.ext4 || echo rootfs.ext4)"
 log "building rootfs from $IMG ($SIZE_MB MB)"
@@ -36,7 +36,7 @@ EXPORT="$(mktemp -d)"; chmod 0755 "$EXPORT"   # becomes the rootfs /
 podman export "$CID" | tar -x -C "$EXPORT"
 podman rm "$CID" >/dev/null
 
-install -m0755 "$HERE/guest-init.sh" "$EXPORT/sbin/guest-init"
+install -m0755 "$SRC_DIR/firecracker/guest-init.sh" "$EXPORT/sbin/guest-init"
 mkdir -p "$EXPORT/work" "$EXPORT/mnt/input" "$EXPORT/proc" "$EXPORT/sys" "$EXPORT/dev" "$EXPORT/tmp"
 # The rootfs is mounted read-only, so these can't be made at boot.
 ln -sfn /mnt/input/input "$EXPORT/input"
@@ -50,7 +50,7 @@ if mount -o loop "$ROOTFS" "$MNT" 2>/dev/null; then
   umount "$MNT"
   ok "rootfs built at $ROOTFS"
 else
-  die "need privileges to loop-mount; run build-guest.sh as root on the demo host"
+  die "need privileges to loop-mount; run setup/build-firecracker-guest.sh as root on the demo host"
 fi
 rm -rf "$EXPORT" "$MNT"
 

@@ -21,7 +21,7 @@ checked 26 Sep 2026; re-checked with unknown fields rejected against v1.0.5,
 
 | File | What |
 |---|---|
-| `Containerfile` | image with `src/` and `workload/` baked in (no host mounts in a cluster) |
+| `Containerfile` | image with `src/` and `tests/workload/` baked in (no host mounts in a cluster) |
 | `00-namespaces.yaml` | `agent-lab` (Pod Security `restricted`), `agent-gateway`, `agent-evidence` |
 | `05-runtimeclass-gvisor.yaml` | gVisor RuntimeClass; kata-deploy creates the Kata ones |
 | `10-gateway.yaml` | model gateway; the API key is a Secret in `agent-gateway` only |
@@ -49,12 +49,12 @@ and CPU limits.
 ## Apply order
 
 ```bash
-podman build -t agent-lab:1 -f extras/k8s/Containerfile .   # + load/push to the node
-kubectl apply -f extras/k8s/00-namespaces.yaml -f extras/k8s/05-runtimeclass-gvisor.yaml
+podman build -t agent-lab:1 -f todo/k8s/Containerfile .   # + load/push to the node
+kubectl apply -f todo/k8s/00-namespaces.yaml -f todo/k8s/05-runtimeclass-gvisor.yaml
 kubectl -n agent-gateway create secret generic model-key --from-literal=api-key="$MODEL_API_KEY"
-kubectl apply -f extras/k8s/10-gateway.yaml -f extras/k8s/20-evidence-sink.yaml -f extras/k8s/30-networkpolicy.yaml
+kubectl apply -f todo/k8s/10-gateway.yaml -f todo/k8s/20-evidence-sink.yaml -f todo/k8s/30-networkpolicy.yaml
 # per run: create ConfigMap agent-run-input (see "Still to build"), then a tier:
-kubectl apply -f extras/k8s/41-sandbox-gvisor.yaml
+kubectl apply -f todo/k8s/41-sandbox-gvisor.yaml
 kubectl -n agent-lab logs -f -l tier=gvisor     # wait for "DONE rc=..."
 ```
 

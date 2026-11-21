@@ -12,7 +12,7 @@ from aider_local.runner import Runner, Settings, run_process
 @unittest.skipUnless(os.environ.get('AIDER_TEST_LIVE') == '1', 'set AIDER_TEST_LIVE=1 for real backends')
 class LiveBackendTests(unittest.TestCase):
     def make_runner(self, timeout=30):
-        assets = Path(__file__).resolve().parents[1] / 'src/firecracker/assets'
+        assets = Path(__file__).resolve().parents[2] / 'src/firecracker/assets'
         return Runner(Settings(kernel=os.environ.get('FC_KERNEL', str(assets / 'vmlinux')),
                                rootfs=os.environ.get('FC_ROOTFS', str(assets / 'rootfs.ext4')),
                                timeout=timeout))

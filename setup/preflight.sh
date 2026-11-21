@@ -3,7 +3,7 @@
 set -uo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck disable=SC1091
-source "$HERE/common/lib.sh"
+source "$HERE/../src/common/lib.sh"
 
 # lib.sh turns on set -e; a failed check here shouldn't abort.
 set +e
@@ -26,7 +26,7 @@ echo "== process-sandbox (bwrap + landlock) =="
 check "bwrap present" command -v bwrap
 check "user namespaces work" bash -c 'bwrap --unshare-user --ro-bind /usr /usr $( [ -d /lib64 ] && echo --ro-bind /lib64 /lib64 ) --ro-bind /lib /lib --ro-bind /bin /bin -- /bin/true'
 check "systemd user scope with limits" bash -c 'systemd-run --user --scope --quiet -p MemoryMax=64M -p TasksMax=8 -- true'
-LL=$(python3 "$HERE/process-sandbox/landlock_guard.py" --abi 2>/dev/null || echo 0)
+LL=$(python3 "$SRC_DIR/process-sandbox/landlock_guard.py" --abi 2>/dev/null || echo 0)
 if [ "${LL:-0}" -ge 1 ]; then printf '  %-40s %sABI %s%s\n' "landlock" "$c_grn" "$LL" "$c_rst"
 else printf '  %-40s %sno%s\n' "landlock" "$c_yel" "$c_rst"; fi
 
@@ -41,14 +41,14 @@ echo
 echo "== firecracker (microVM) =="
 check "/dev/kvm" test -e /dev/kvm
 check "firecracker binary" command -v firecracker
-check "guest kernel" test -f "$HERE/firecracker/assets/vmlinux"
-check "guest rootfs" test -f "$HERE/firecracker/assets/rootfs.ext4"
+check "guest kernel" test -f "$SRC_DIR/firecracker/assets/vmlinux"
+check "guest rootfs" test -f "$SRC_DIR/firecracker/assets/rootfs.ext4"
 
 echo
 echo "== agent mode (optional) =="
 check "aider present (process-sandbox)" command -v aider
 check "image has aider (rootless-container)" bash -c "[ \"\$(podman image inspect ${CONTAINER_IMAGE} --format '{{index .Labels \"demo.with_aider\"}}' 2>/dev/null)\" = 1 ]"
-check "rootfs-aider.ext4 (firecracker)" test -f "$HERE/firecracker/assets/rootfs-aider.ext4"
+check "rootfs-aider.ext4 (firecracker)" test -f "$SRC_DIR/firecracker/assets/rootfs-aider.ext4"
 [ -n "${MODEL_API_KEY:-}" ] && printf '  %-40s %sset%s\n' "MODEL_API_KEY" "$c_grn" "$c_rst" \
   || printf '  %-40s %sunset (emulate mode still works)%s\n' "MODEL_API_KEY" "$c_yel" "$c_rst"
 

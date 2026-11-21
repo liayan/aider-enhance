@@ -65,7 +65,7 @@ podman info --format '{{.Host.Security.Rootless}} {{.Host.CgroupsVersion}}'
 podman build -t agent-sandbox-demo:1 -f src/rootless-container/Containerfile .
 
 # Verify the image and runner without a model or API key:
-aider-test --workspace examples/hello-project \
+aider-test --workspace tests/fixtures/hello-project \
   'python3 -m unittest discover -s tests'
 ```
 
@@ -80,7 +80,7 @@ while still in the repository root:
 ```bash
 export FC_KERNEL="$PWD/src/firecracker/assets/vmlinux"
 export FC_ROOTFS="$PWD/src/firecracker/assets/rootfs.ext4"
-aider-test --workspace examples/hello-project \
+aider-test --workspace tests/fixtures/hello-project \
   'AIDER_TEST_BACKEND=microvm python3 -m unittest discover -s tests'
 ```
 
@@ -97,7 +97,7 @@ You can explicitly select the process backend in either terminal command:
 aider-local --test-backend process-sandbox
 
 # From this repository root, without an LLM:
-aider-test --test-backend process-sandbox --workspace examples/hello-project \
+aider-test --test-backend process-sandbox --workspace tests/fixtures/hello-project \
   'python3 -m unittest discover -s tests'
 ```
 
@@ -168,7 +168,7 @@ are easy to inspect:
 
 ```bash
 aider_demo_dir=$(mktemp -d /tmp/aider-quickstart.XXXXXX)
-cp -R examples/hello-project/. "$aider_demo_dir/"
+cp -R tests/fixtures/hello-project/. "$aider_demo_dir/"
 cd "$aider_demo_dir"
 
 aider-local --no-git --model deepseek/deepseek-chat \
@@ -226,7 +226,7 @@ setup. For a real repository, omit that flag and use your usual Git review flow.
 The runner prints its selected backend. Readiness checks and runner-detected
 setup errors return 125 from `aider-test`; command and runtime failures return
 nonzero statuses with their diagnostic output.
-From the repository root, `./src/preflight.sh` also reports demo prerequisites,
+From the repository root, `./setup/preflight.sh` also reports demo prerequisites,
 but a real `aider-test` invocation verifies the adapter's execution path.
 
 Command examples are checked against our pinned version and the official
@@ -300,7 +300,7 @@ Other settings are `--sandbox-image IMAGE`, `--sandbox-kernel PATH`,
 `--sandbox-rootfs PATH`, and `--sandbox-timeout SECONDS`. Kernel and rootfs
 flags default to `FC_KERNEL` and `FC_ROOTFS`. MicroVM execution requires Linux,
 KVM access, Firecracker, `mkfs.ext4`, `debugfs`, and a rootfs built by this
-repository's `build-guest.sh`; it needs no model gateway or aider in the guest.
+repository's `setup/build-firecracker-guest.sh`; it needs no model gateway or aider in the guest.
 
 You can test the boundary independently of an LLM:
 
@@ -319,27 +319,27 @@ the whole-agent mode below when you need to contain aider itself.
 To run the adapter's regression tests after installation:
 
 ```bash
-python -m unittest discover -s tests -v
+tests/run-unit-tests.sh -v
 
 # Also exercise real backends, with the image and VM assets prepared:
-AIDER_TEST_LIVE=1 python -m unittest discover -s tests -v
+AIDER_TEST_LIVE=1 tests/run-unit-tests.sh -v
 
 # Also exercise the real process sandbox and its isolation checks:
-AIDER_TEST_PROCESS_LIVE=1 python -m unittest discover -s tests -v
+AIDER_TEST_PROCESS_LIVE=1 tests/run-unit-tests.sh -v
 ```
 
 
 ## Reproducible refactoring benchmarks
 
-The [CLI benchmark](../benchmarks/cli_refactor/README.md) covers a fixed five-command
-refactor. The [HTTP-client benchmark](../benchmarks/http_client_refactor/README.md)
+The [CLI benchmark](../tests/benchmarks/cli_refactor/README.md) covers a fixed five-command
+refactor. The [HTTP-client benchmark](../tests/benchmarks/http_client_refactor/README.md)
 adds offline retry, timeout, logging and strict file-scope checks. Both use
 repeated process-sandbox, Podman and Firecracker comparisons. Offline replay uses a reference refactor
 without model calls. Optional Aider generation records actual per-request token
 usage separately from sandbox execution timings.
 
 ```bash
-python benchmarks/cli_refactor/benchmark.py run \
+python tests/benchmarks/cli_refactor/benchmark.py run \
   --kernel src/firecracker/assets/vmlinux \
   --rootfs src/firecracker/assets/rootfs.ext4 \
   --output results/cli-refactor-reference

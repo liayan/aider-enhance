@@ -7,7 +7,7 @@ metadata while disabling user config, dotenv and model metadata/settings files.
 from pathlib import Path
 import sys
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+sys.path.insert(0, str(Path(__file__).resolve().parents[3] / 'src'))
 import aider.main
 from aider_local.cli import main
 

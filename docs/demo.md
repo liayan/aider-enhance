@@ -10,14 +10,14 @@ behavior. Pick the boundary by who runs the agent and on whose code.
 
 - [ ] Use a disposable host or VM. No SSH keys, cloud credentials, browser
       profiles or real repos on it.
-- [ ] `./src/preflight.sh` shows YES for every backend you'll run live.
+- [ ] `./setup/preflight.sh` shows YES for every backend you'll run live.
 - [ ] Give the baseline somewhere to put the canary and the outside-write
       target; without it two baseline probes show `blocked`:
       `sudo mkdir -p /demo/outside && sudo chown -R $USER /demo`
 - [ ] `podman build -t agent-sandbox-demo:1 -f src/rootless-container/Containerfile .`
       (add `--build-arg WITH_AIDER=1` for the real-model run)
 - [ ] Firecracker: kernel in `src/firecracker/assets/`, then
-      `sudo src/firecracker/build-guest.sh` (and `sudo env WITH_AIDER=1 ...`
+      `sudo setup/build-firecracker-guest.sh` (and `sudo env WITH_AIDER=1 ...`
       for agent mode). Rebuild both after any change to `guest-init.sh`.
 - [ ] Run every backend once and keep that `results/` as a fallback, plus a
       screen recording.

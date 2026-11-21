@@ -28,7 +28,7 @@ Use the same backend prerequisites as the
 [CLI benchmark](../cli_refactor/README.md). Output directories must be new.
 
 ```bash
-python benchmarks/cli_refactor/benchmark.py run \
+python tests/benchmarks/cli_refactor/benchmark.py run \
   --workload http-client-refactor \
   --kernel src/firecracker/assets/vmlinux \
   --rootfs src/firecracker/assets/rootfs.ext4 \
@@ -49,14 +49,14 @@ the provider. See the [CLI benchmark guide](../cli_refactor/README.md) for API
 usage recording details and the limits of model-versus-sandbox timing.
 
 ```bash
-python benchmarks/cli_refactor/benchmark.py generate \
+python tests/benchmarks/cli_refactor/benchmark.py generate \
   --workload http-client-refactor \
   --model openai/YOUR_MODEL_ID \
   --api-base https://YOUR_PROVIDER/v1 \
   --backend container \
   --output results/http-client-model-01
 
-python benchmarks/cli_refactor/benchmark.py run \
+python tests/benchmarks/cli_refactor/benchmark.py run \
   --workload http-client-refactor \
   --candidate results/http-client-model-01/work \
   --kernel src/firecracker/assets/vmlinux \

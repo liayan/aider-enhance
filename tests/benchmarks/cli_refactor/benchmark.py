@@ -19,8 +19,9 @@ import tempfile
 import time
 
 HERE = Path(__file__).resolve().parent
-ROOT = HERE.parents[1]
-sys.path.insert(0, str(ROOT))
+ROOT = HERE.parents[2]
+SRC = ROOT / 'src'
+sys.path.insert(0, str(SRC))
 from aider_local.runner import Runner, RunnerError, Settings, snapshot  # noqa: E402
 from model_proxy import proxy, usage_summary
 from file_scope import inventory, project_entries, scope_report  # noqa: E402
@@ -101,13 +102,13 @@ def metadata(name="cli-refactor"):
             'aider_version': aider_version,
             'support_files': {str(p.relative_to(ROOT)): file_hash(p) for p in
                 [HERE / 'aider_entry.py', HERE / 'model_proxy.py', HERE / 'file_scope.py',
-                 *sorted((ROOT / 'aider_local').glob('*.py')),
-                 ROOT / 'aider_local/policy.md', ROOT / 'aider_local/inside.sh']},
+                 *sorted((SRC / 'aider_local').glob('*.py')),
+                 SRC / 'aider_local/policy.md', SRC / 'aider_local/inside.sh']},
             'project_dirty': bool(command_output(['git', '-C', str(ROOT), 'status', '--porcelain'])),
             'baseline': manifest(fixture / 'baseline'), 'prompt_sha256': file_hash(fixture / 'prompt.txt'),
             'checker_sha256': file_hash(fixture / 'check.py'),
             'harness_sha256': file_hash(Path(__file__)),
-            'runner_sha256': file_hash(ROOT / 'aider_local/runner.py')}
+            'runner_sha256': file_hash(SRC / 'aider_local/runner.py')}
 
 
 def new_output(path):
@@ -161,7 +162,7 @@ def generate(args):
                  '--message-file', str(workload(args.workload)['directory'] / 'prompt.txt'),
                  '--read', '_bench/check.py', *workload(args.workload)['files']]
     env = {k: v for k, v in os.environ.items() if not k.startswith('AIDER_')}
-    env['PYTHONPATH'] = str(ROOT)
+    env['PYTHONPATH'] = str(SRC)
     env['PYTHONDONTWRITEBYTECODE'] = '1'
     trace = output / 'requests.jsonl'
     trace.touch(mode=0o600)
