@@ -1,5 +1,4 @@
-results/*
-!results/.gitkeep
+results/
 src/firecracker/assets/*
 !src/firecracker/assets/.gitkeep
 __pycache__/

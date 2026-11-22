@@ -17,10 +17,8 @@ decided outside the sandbox, from evidence the agent can't touch.
 | [docs/](docs/) | [experiment-design.md](docs/experiment-design.md) (threat model, variables, probes, verdict rules, metrics), [demo.md](docs/demo.md) (stage run-through), [runbook.md](docs/runbook.md) (what crosses the boundary), [aider-local.md](docs/aider-local.md), [architecture.md](docs/architecture.md) (how aider works) |
 | [tests/](tests/) | Verification only, not needed to run: [unit/](tests/unit/) tests with [run-unit-tests.sh](tests/run-unit-tests.sh), [benchmarks/](tests/benchmarks/), [expected-results/](tests/expected-results/), [fixtures/](tests/fixtures/) |
 | [setup/](setup/) | Environment setup: preflight, container image, Firecracker guest, aider-local install. Start with [setup/README.md](setup/README.md) |
-| [video/](video/) | Recordings of the three demo runs |
 | [k8s-todo/](k8s-todo/) | Future work: the Kubernetes port |
 | `aider/` | Upstream aider as a submodule, at the version in `src/versions.env` |
-| `results/` | Run output (not committed) |
 
 ## The experiment
 
