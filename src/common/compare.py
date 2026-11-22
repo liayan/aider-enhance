@@ -99,11 +99,18 @@ def main(results_dir):
     exposures = [n for n in EXPOSURE if n in names]
 
     def score(b):
-        """Residual exposures: exposed counts 1, reduced 0.5."""
-        tot = 0.0
+        """Residual exposures: exposed counts 1, reduced 0.5. A run where any
+        exposure probe is missing or wasn't executed gets no score, so it
+        can't read as a clean 0."""
+        tot, seen = 0.0, 0
         for p in runs[b]["data"].get("probes", []):
             if p["probe"] in exposures:
-                tot += WEIGHT.get(p.get("observed"), 0.0)
+                if p.get("observed") not in WEIGHT:
+                    return "incomplete"
+                tot += WEIGHT[p["observed"]]
+                seen += 1
+        if seen < len(exposures):
+            return "incomplete"
         return f"{tot:g} of {len(exposures)}"
 
     w = max(len("probe"), max(len(n) for n in names)) + 1
